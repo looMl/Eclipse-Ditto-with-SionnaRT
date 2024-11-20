@@ -1,0 +1,15 @@
+{
+	"thingId": "org.povo:phone",
+    "policyId": "org.povo:policy",
+    "attributes": {
+        "name": "iPhone"
+    },
+    "features": {
+        "gps": {
+            "properties": {
+                "position": 0,
+				"orientation": 0
+            }
+        }
+    }
+}
