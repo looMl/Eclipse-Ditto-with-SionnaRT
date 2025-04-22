@@ -4,7 +4,15 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import json
 import argparse
+import logging
+import sys
+
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
+
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    handlers=[logging.StreamHandler(sys.stdout)])
+logger = logging.getLogger(__name__)
 
 # GPU Setup and TensorFlow Configuration
 def setup_gpu(gpu_num=0):
@@ -41,10 +49,25 @@ def parse_arguments():
   return rx_pos, rx_ori
 
 # Scene and Camera Setup
-def load_scene_from_xml(filepath):
-  """Loads scene from XML file."""
-  scene = load_scene(filepath)
-  return scene
+def load_scene_from_xml(scene_filename="povo_scene.xml"):
+  """Loads scene from XML file located relative to the project structure."""
+  try:
+    # Get the directory where the current script (sionnart.py) is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    src_dir = os.path.dirname(script_dir) 
+    scene_dir = os.path.join(src_dir, "scene")
+    filepath = os.path.join(scene_dir, scene_filename)
+    
+    logger.info(f"Attempting to load scene from: {filepath}") 
+    scene = load_scene(filepath)
+    logger.info(f"Scene '{filepath}' loaded successfully.")
+    return scene
+  except FileNotFoundError:
+    logger.error(f"Scene file not found at calculated path: {filepath}", exc_info=True)
+    raise
+  except Exception as e: 
+    logger.error(f"Failed to load scene from {filepath}: {e}", exc_info=True)
+    raise
 
 def setup_camera():
   """Initializes and returns a camera with pre-defined position and focus."""
@@ -131,25 +154,44 @@ def render_and_save(scene, paths=None, camera="def_camera", no_preview=False, re
 def main():
 
   # 1. Setup GPU and configure TensorFlow
-  rx_pos, rx_ori = parse_arguments()
-
-  # 2. Setup GPU and configure TensorFlow
   #setup_gpu()
+
+  # 2. Parse arguments
+  logger.info("Parsing command line arguments...")
+  try:
+    rx_pos, rx_ori = parse_arguments()
+    logger.info(f"Received position: {rx_pos}, orientation: {rx_ori}")
+  except Exception as e:
+    logger.critical(f"Failed to parse arguments: {e}", exc_info=True)
+    sys.exit(1)
+  
 
   # 3. Check if preview mode is enabled
   no_preview = check_colab()
 
   # 4. Load scene and set camera
-  scene = load_scene_from_xml("../scene/povo_scene.xml")
+  logger.info("Loading scene...")
+  scene = load_scene_from_xml("povo_scene.xml")
+  if scene is None:
+    logger.critical("Scene loading failed. Exiting.")
+    sys.exit(1)
+
+  logger.info("Setting up camera...")  
   scene.add(setup_camera())
 
   # 5. Configure antennas and add transmitter and dynamic receiver
+  logger.info("Configuring antennas...")
   configure_antenna_arrays(scene)
+  logger.info("Adding transmitter and receiver...")
   add_transmitter_receiver(scene, rx_pos, rx_ori)
 
   # 6. Compute paths and save renders
+  logger.info("Computing paths...")
   paths = compute_paths(scene)
+  logger.info("Rendering and saving scene...")
   render_and_save(scene, paths=paths, camera="def_camera", no_preview=no_preview, output_file="paths_render.png")
+
+  logger.info("SionnaRT script finished successfully.")
 
 if __name__ == "__main__":
   main()
