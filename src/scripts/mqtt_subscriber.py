@@ -60,11 +60,9 @@ def on_message(client, userdata, message):
     logger.error(f"Failed to parse JSON payload on topic {message.topic}: {e}. Payload: '{payload_str}'. Skipping message.", exc_info=True)
     return
 
-  # 3. Extract Data (Add checks for key existence)
+  # 3. Extract Data
   # Ditto messages often have a specific structure (e.g., 'value' or 'features')
   # Adjust the extraction logic based on the actual message format from Ditto
-  # Assuming the relevant data is directly in the payload for now, as per original code
-  # It's safer to use .get() with defaults or check with 'in'
   position = payload_data.get("position")
   orientation = payload_data.get("orientation")
 
@@ -84,24 +82,17 @@ def on_message(client, userdata, message):
     logger.info(f"Executing SionnaRT script: {SIONNART_SCRIPT_PATH} with position={position_arg} orientation={orientation_arg}")
     
     # Using check=True raises CalledProcessError on non-zero exit code
-    # Capture output for potential debugging
     result = subprocess.run(["python", SIONNART_SCRIPT_PATH, 
                               "--position", position_arg, 
                               "--orientation", orientation_arg], 
                             check=True) 
     
     logger.info(f"SionnaRT script executed successfully!")
-    if result.stdout:
-      logger.info(f"SionnaRT stdout:\n{result.stdout}")
-    if result.stderr:
-      logger.warning(f"SionnaRT stderr:\n{result.stderr}")
 
   except FileNotFoundError:
     logger.error(f"Error executing script: '{SIONNART_SCRIPT_PATH}' not found. Please check the path.", exc_info=True)
   except subprocess.CalledProcessError as e:
     logger.error(f"Error during SionnaRT script execution (non-zero exit code: {e.returncode}).", exc_info=True)
-    logger.error(f"SionnaRT stdout:\n{e.stdout}")
-    logger.error(f"SionnaRT stderr:\n{e.stderr}")
   except Exception as e:
     logger.error(f"An unexpected error occurred while running the SionnaRT script: {e}", exc_info=True)
 
