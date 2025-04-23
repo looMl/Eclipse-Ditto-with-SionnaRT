@@ -91,11 +91,17 @@ def on_message(client, userdata, message):
                             check=True, capture_output=True, text=True) 
     
     logger.info(f"SionnaRT script executed successfully!")
+    if result.stdout:
+      logger.info(f"SionnaRT stdout:\n{result.stdout}")
+    if result.stderr:
+      logger.warning(f"SionnaRT stderr:\n{result.stderr}")
 
   except FileNotFoundError:
     logger.error(f"Error executing script: '{SIONNART_SCRIPT_PATH}' not found. Please check the path.", exc_info=True)
   except subprocess.CalledProcessError as e:
     logger.error(f"Error during SionnaRT script execution (non-zero exit code: {e.returncode}).", exc_info=True)
+    logger.error(f"SionnaRT stdout:\n{e.stdout}")
+    logger.error(f"SionnaRT stderr:\n{e.stderr}")
   except Exception as e:
     logger.error(f"An unexpected error occurred while running the SionnaRT script: {e}", exc_info=True)
 
