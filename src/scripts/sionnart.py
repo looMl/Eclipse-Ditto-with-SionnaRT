@@ -40,14 +40,6 @@ def setup_gpu(gpu_num=0):
       print(e)
   tf.get_logger().setLevel('ERROR')
 
-def check_colab():
-  """Check if running in Colab and adjust preview mode"""
-  try:
-    import google.colab
-    return True
-  except:
-    return os.getenv("SIONNA_NO_PREVIEW", False)
-
 def parse_arguments():
   """Parses command-line arguments for receiver position and orientation."""
   parser = argparse.ArgumentParser(description="Render scene with dynamic position and orientation.")
@@ -109,13 +101,6 @@ def setup_camera():
   except Exception as e:
     logger.error(f"Failed to initialize Camera: {e}", exc_info=True)
     raise
-
-# FOR TESTING - Prints scene elements and associated materials
-def print_scene_elements(scene):
-  for i, obj in enumerate(scene.objects.values()):
-    print(f"{obj.name} : {obj.radio_material.name}")
-    if i >= 10:
-      break
 
 def configure_antenna_arrays(scene):
   """Configures transmitter and receiver antenna arrays on the scene."""
@@ -179,7 +164,7 @@ def get_next_filename(directory, base_name, extension):
 
 def render_and_save(scene, paths=None, camera=None, resolution=[480, 320]):
   """Renders the scene using matplotlib and saves the output image with a unique filename."""
-  logger.info(f"Starting scene rendering (preview disabled).")
+  logger.info(f"Starting scene rendering.")
   try:
     # Get the directory of the current script
     current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -218,33 +203,30 @@ def main():
       logger.info("CUDA_VISIBLE_DEVICES set to '-1'. Forcing CPU execution.")
   else:
       logger.info(f"CUDA_VISIBLE_DEVICES set to '{os.environ.get('CUDA_VISIBLE_DEVICES', 'Not Set')}'. Attempting GPU execution if available.")
-    # 1. If CUDA_VISIBLE_DEVICES IS NOT '-1' and you want to use the GPU for execution, then
+    # 0. If CUDA_VISIBLE_DEVICES IS NOT '-1' and you want to use the GPU for execution, then
     # uncomment the following line if you have a compatible NVIDIA GPU with the CUDA and cuDNN drivers, properly installed, to greatly accelerate calculations:
     # setup_gpu()
   try:
-    # 2. Parse arguments
+    # 1. Parse arguments
     rx_pos, rx_ori = parse_arguments()
 
-    # 3. Check if preview mode is enabled (currently not used for rendering)
-    # no_preview = check_colab()
-
-    # 4. Load scene and set camera
+    # 2. Load scene and set camera
     logger.info("Loading scene...")
     scene = load_scene_from_xml("povo_scene.xml")
     logger.info("Setting up camera...")
     camera_item = setup_camera()
 
-    # 5. Configure antennas and add transmitter and dynamic receiver
+    # 3. Configure antennas and add transmitter and dynamic receiver
     logger.info("Configuring antennas...")
     configure_antenna_arrays(scene)
     logger.info("Adding transmitter and receiver...")
     add_transmitter_receiver(scene, rx_pos, rx_ori)
 
-    # 6. Compute paths
+    # 4. Compute paths
     logger.info("Computing paths...")
     paths = compute_paths(scene)
 
-    # 7. Render and save the scene
+    # 5. Render and save the scene
     logger.info("Rendering and saving scene...")
     render_and_save(scene, paths=paths, camera=camera_item, resolution=[480, 320])
     logger.info("--- SionnaRT script finished successfully. ---")
