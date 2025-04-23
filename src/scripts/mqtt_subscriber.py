@@ -88,7 +88,7 @@ def on_message(client, userdata, message):
     result = subprocess.run(["python", SIONNART_SCRIPT_PATH, 
                               "--position", position_arg, 
                               "--orientation", orientation_arg], 
-                            check=True, capture_output=True, text=True) 
+                            check=True) 
     
     logger.info(f"SionnaRT script executed successfully!")
     if result.stdout:
