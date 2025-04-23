@@ -7,6 +7,8 @@ import sys
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1' # In my case, my GPU is not supported so I have to rely on the CPU (slower)
 # Log level of Tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import matplotlib;
+matplotlib.use('Agg') # Use Agg as backend instead of a GUI one (TkAgg) since we render on a file and dont need a GUI toolkit
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np 
@@ -19,6 +21,7 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger(__name__)
+logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
 def setup_gpu(gpu_num=0):
   """Configures GPU for TensorFlow and suppresses warnings."""
@@ -190,8 +193,7 @@ def render_and_save(scene, paths=None, camera=None, resolution=[480, 320]):
       "camera": camera,
       "paths": paths, # Pass computed paths to visualize them
       "show_devices": True, # Show TX and RX locations
-      #"show_paths": True, # Set to False if paths clutter the image or aren't needed
-      "num_samples": 256, # Rendering parameters - adjust for quality vs. speed trade-off.
+      "num_samples": 512, # Rendering parameters - adjust for quality vs. speed trade-off.
       "resolution": resolution # Image dimensions [width, height]
     }
 
@@ -217,10 +219,8 @@ def main():
   else:
       logger.info(f"CUDA_VISIBLE_DEVICES set to '{os.environ.get('CUDA_VISIBLE_DEVICES', 'Not Set')}'. Attempting GPU execution if available.")
     # 1. If CUDA_VISIBLE_DEVICES IS NOT '-1' and you want to use the GPU for execution, then
-    # uncomment the following line if you have a compatible NVIDIA GPU with the CUDA and cuDNN drivers
-    # properly installed, to greatly accelerate calculations.
+    # uncomment the following line if you have a compatible NVIDIA GPU with the CUDA and cuDNN drivers, properly installed, to greatly accelerate calculations:
     # setup_gpu()
-
   try:
     # 2. Parse arguments
     rx_pos, rx_ori = parse_arguments()
