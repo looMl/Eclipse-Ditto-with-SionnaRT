@@ -1,5 +1,4 @@
 from PIL import Image
-
 import os
 import sys
 # -1: CPU Only execution - 0: GPU only if compatible
@@ -25,19 +24,25 @@ logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
 def setup_gpu(gpu_num=0):
   """Configures GPU for TensorFlow and suppresses warnings."""
-  if os.getenv("CUDA_VISIBLE_DEVICES") is None:
-    os.environ["CUDA_VISIBLE_DEVICES"] = f"{gpu_num}"
-  gpus = tf.config.list_physical_devices('GPU')
-  # Attempt to enable memory growth to avoid allocating all GPU memory at once.
-  # Essential for stability and running multiple processes.
-  for gpu in gpus: # Apply to all visible GPUs
-    tf.config.experimental.set_memory_growth(gpu, True)
-  gpus = tf.config.list_physical_devices('GPU')
-  if gpus:
-    try:
-      tf.config.experimental.set_memory_growth(gpus[0], True)
-    except RuntimeError as e:
-      print(e)
+  try:
+    gpus = tf.config.list_physical_devices('GPU')
+    if not gpus:
+      logger.warning("No visible GPU found by TensorFlow.")
+      return
+    logger.info(f"Found visible GPU(s): {gpus}")
+    configured_any = False
+    for gpu in gpus: 
+      try:
+        tf.config.experimental.set_memory_growth(gpu, True)
+        logger.info(f"Enabled memory growth for {gpu.name}")
+        configured_any = True
+      except RuntimeError as e:
+        logger.warning(f"Could not set memory growth for {gpu.name} (might be already initialized or other issue): {e}")
+    if not configured_any:
+      logger.warning("Memory growth could not be configured for any GPU.")
+
+  except Exception as e:
+    logger.error(f"An unexpected error occurred during GPU memory setup: {e}", exc_info=True)
   tf.get_logger().setLevel('ERROR')
 
 def parse_arguments():
@@ -142,6 +147,7 @@ def compute_paths(scene, max_depth=5, num_samples=1e6):
   # max_depth: Controls reflection/diffraction depth. Higher = more realistic but significantly slower.
   # num_samples: Number of rays cast from TX. Higher = better chance of finding paths, more accurate results, but slower.
   logger.info(f"Computing paths with max_depth={max_depth}, num_samples={num_samples:.1e}...")
+  paths = None
   try:
     samples_int = int(num_samples)
     solver = PathSolver()
@@ -173,9 +179,9 @@ def render_and_save(scene, paths=None, camera=None, resolution=[480, 320]):
     os.makedirs(renders_directory, exist_ok=True)
     # Automatically generate a unique filename with an incremental number
     output_path = get_next_filename(renders_directory, "paths_render", "png")
-    
     render_kwargs = {
       "camera": camera,
+      "filename": output_path,
       "paths": paths, # Pass computed paths to visualize them
       "show_devices": True, # Show TX and RX locations
       "num_samples": 512, # Rendering parameters - adjust for quality vs. speed trade-off.
@@ -183,10 +189,8 @@ def render_and_save(scene, paths=None, camera=None, resolution=[480, 320]):
     }
 
     logger.info(f"Rendering scene...")
-    scene.render(**render_kwargs)
+    scene.render_to_file(**render_kwargs)
     logger.info(f"Saving rendered image to {output_path}...")
-    plt.savefig(output_path, bbox_inches='tight') # Minimize whitespace around the rendered scene.
-    plt.close() # Without this, memory usage can grow indefinitely.
 
   except Exception as e:
     error_msg = f"CRITICAL: An error occurred during rendering or saving"
@@ -232,7 +236,7 @@ def main():
     logger.info("--- SionnaRT script finished successfully. ---")
     sys.exit(0)
 
-  except (ValueError, FileNotFoundError, RuntimeError, TypeError) as e: 
+  except (ValueError, FileNotFoundError, RuntimeError, TypeError, AttributeError) as e: 
     logger.critical(f"A critical error occurred during script execution: {e}", exc_info=True)
     sys.exit(1)
   except Exception as e:
