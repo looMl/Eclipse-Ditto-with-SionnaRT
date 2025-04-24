@@ -78,23 +78,45 @@ def on_message(client, userdata, message):
     # Convert lists back to JSON strings for command-line arguments
     position_arg = json.dumps(position)
     orientation_arg = json.dumps(orientation)
+    command = ["python", SIONNART_SCRIPT_PATH, "--position", position_arg, "--orientation", orientation_arg]
+    
+    logger.info(f"Executing SionnaRT script with command: {' '.join(command)}")
+    
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
+    
+    # Read pipes until process is not over, it causes a deadlock otherwise since it fills the pipe buffer
+    while process.poll() is None:
+      try:
+        stdout_line = process.stdout.readline()
+        if stdout_line:
+          logger.info(f"[SionnaRT stdout] {stdout_line.strip()}")
+        stderr_line = process.stderr.readline()
+        if stderr_line:
+          logger.warning(f"[SionnaRT stderr] {stderr_line.strip()}")
+      except Exception as read_e:
+        logger.error(f"Error reading subprocess pipe: {read_e}")
+        break
 
-    logger.info(f"Executing SionnaRT script: {SIONNART_SCRIPT_PATH} with position={position_arg} orientation={orientation_arg}")
+    # Remaining output after process execution
+    remaining_stdout, remaining_stderr = process.communicate()
+    if remaining_stdout:
+      for line in remaining_stdout.splitlines():
+        logger.info(f"[SionnaRT stdout] {line.strip()}")
+    if remaining_stderr:
+      for line in remaining_stderr.splitlines():
+        logger.warning(f"[SionnaRT stderr] {line.strip()}")
+
+    return_code = process.returncode
     
-    # Using check=True raises CalledProcessError on non-zero exit code
-    result = subprocess.run(["python", SIONNART_SCRIPT_PATH, 
-                              "--position", position_arg, 
-                              "--orientation", orientation_arg], 
-                            check=True) 
-    
-    logger.info(f"SionnaRT script executed successfully!")
+    if return_code == 0:
+      logger.info(f"SionnaRT script executed successfully!")
+    else:
+      logger.error(f"Error during SionnaRT script execution (non-zero exit code: {return_code}).")
 
   except FileNotFoundError:
-    logger.error(f"Error executing script: '{SIONNART_SCRIPT_PATH}' not found. Please check the path.", exc_info=True)
-  except subprocess.CalledProcessError as e:
-    logger.error(f"Error during SionnaRT script execution (non-zero exit code: {e.returncode}).", exc_info=True)
+    logger.error(f"Error executing script: '{SIONNART_SCRIPT_PATH}' not found.", exc_info=True)
   except Exception as e:
-    logger.error(f"An unexpected error occurred while running the SionnaRT script: {e}", exc_info=True)
+    logger.error(f"An unexpected error occurred while running/managing the SionnaRT script: {e}", exc_info=True)
 
 def connect_mqtt() -> mqtt_client.Client | None:
   """Connects to the MQTT broker and sets up callbacks."""
