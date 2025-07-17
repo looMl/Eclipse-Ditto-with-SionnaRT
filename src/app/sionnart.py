@@ -15,12 +15,7 @@ import json
 import argparse
 import logging
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera, PathSolver
-
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[logging.StreamHandler(sys.stdout)])
-logger = logging.getLogger(__name__)
-logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
+from loguru import logger
 
 def setup_gpu(gpu_num=0):
   """Configures GPU for TensorFlow and suppresses warnings."""

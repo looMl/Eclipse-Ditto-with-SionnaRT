@@ -1,51 +1,36 @@
-import logging
 import json
 import random
 import time
 import sys
-
+from loguru import logger
 from paho.mqtt import client as mqtt_client
 
-# --- Configuration Constants ---
-BROKER = "localhost"
-PORT = 1883
-THING_ID = "org.povo:phone"
-BASE_TOPIC = "devices/in"
-PUBLISH_TOPIC = f"{BASE_TOPIC}/{THING_ID}"
-CLIENT_ID = f'publish-{random.randint(0, 1000)}'
-PUBLISH_INTERVAL_SECONDS = 25
-NUM_MESSAGES = 5  # Number of messages to send
-INITIAL_TRANSLATION = -30
-TRANSLATION_INCREMENT = 10
+from app.utils.config import settings
 
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[logging.StreamHandler(sys.stdout)])
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stdout, level=settings.logging.level)
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
-  """Callback function executed when the client connects to the MQTT broker."""
   if reason_code == 0 and client.is_connected():
-    logger.info(f"Successfully connected to MQTT Broker at {BROKER}:{PORT}")
+    logger.info(f"Successfully connected to MQTT Broker at {settings.mqtt.broker_host}:{settings.mqtt.broker_port}")
   else:
     logger.error(f"Failed to connect to MQTT Broker, return code: {reason_code}")
 
 def on_disconnect(client, userdata, flags, reason_code, properties):
-  """Callback function executed when the client disconnects from the MQTT broker."""
   if reason_code == 0:
     logger.info("Successfully disconnected from MQTT Broker.")
   else:
     logger.warning(f"Unexpectedly disconnected from MQTT Broker with result code: {reason_code}")
 
 def connect_mqtt() -> mqtt_client.Client | None:
-  """Establishes a connection to the MQTT broker."""
-  client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION2, CLIENT_ID)
+  client_id = f"{settings.mqtt.publisher.client_id_prefix}{random.randint(0, 1000)}"
+  client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION2, client_id)
   client.on_connect = on_connect
   client.on_disconnect = on_disconnect
   
   try:
-    logger.info(f"Attempting to connect to MQTT Broker at {BROKER}:{PORT}...")
-    client.connect(BROKER, PORT) 
+    logger.info(f"Attempting to connect to MQTT Broker at {settings.mqtt.broker_host}:{settings.mqtt.broker_port}...")
+    client.connect(settings.mqtt.broker_host, settings.mqtt.broker_port) 
     return client
   except Exception as e:
     logger.critical(f"MQTT connection failed during connect() call: {e}", exc_info=True)
@@ -53,35 +38,33 @@ def connect_mqtt() -> mqtt_client.Client | None:
 
 def publish(client: mqtt_client.Client, translation: float) -> bool:
   """Constructs and publishes a fake GPS data message to the MQTT broker."""
-  # Construct the payload
+  pub_settings = settings.mqtt.publisher
+  topic = f"{pub_settings.base_topic}/{pub_settings.thing_id}"
+
   position = [0.0, round(translation, 2), 0.1]
   orientation = [0.0, 0.0, 0.0]
 
   gps_data = {
     "position": position,
     "orientation": orientation,
-    "thingId": THING_ID
+    "thingId": pub_settings.thing_id
   }
   payload = json.dumps(gps_data, ensure_ascii=False) 
 
-  # Check connection before publishing
   if not client.is_connected():
     logger.error("Publish attempt failed: MQTT client is not connected.")
     return False
-
-  # Publish the message
+  
   try:
-    # publish() returns MqttMessageInfo object
-    msg_info = client.publish(PUBLISH_TOPIC, payload) 
-    
+    msg_info = client.publish(topic, payload)   # publish() returns MqttMessageInfo object
     if msg_info.rc == mqtt_client.MQTT_ERR_SUCCESS:
-      logger.info(f"Successfully published `{payload}` to topic `{PUBLISH_TOPIC}`")
+      logger.info(f"Successfully published `{payload}` to topic `{topic}`")
       return True
     else:
-      logger.error(f"Failed to publish message to topic `{PUBLISH_TOPIC}`. Return code: {msg_info.rc}")
+      logger.error(f"Failed to publish message to topic `{topic}`. Return code: {msg_info.rc}")
       return False
   except Exception as e:
-    logger.error(f"Exception during publish to topic `{PUBLISH_TOPIC}`: {e}", exc_info=True)
+    logger.error(f"Exception during publish to topic `{topic}`: {e}", exc_info=True)
     return False
 
 def run():
@@ -101,19 +84,20 @@ def run():
     client.loop_stop()
     sys.exit(1)
 
-  translation = float(INITIAL_TRANSLATION)
-  for i in range(NUM_MESSAGES):
-    logger.info(f"Publishing message {i+1}/{NUM_MESSAGES}...")
+  pub_settings = settings.mqtt.publisher
+  translation = float(pub_settings.initial_translation)
+  for i in range(pub_settings.num_messages):
+    logger.info(f"Publishing message {i+1}/{pub_settings.num_messages}...")
     success = publish(client, translation)
     
     if success:
-      translation += float(TRANSLATION_INCREMENT)
+      translation += float(pub_settings.translation_increment)
     else:
       logger.warning("Publish failed for current message. Continuing with next message.")
     
-    if i < NUM_MESSAGES - 1:
-      logger.info(f"Waiting for {PUBLISH_INTERVAL_SECONDS} seconds...")
-      time.sleep(PUBLISH_INTERVAL_SECONDS)
+    if i < pub_settings.num_messages - 1:
+      logger.info(f"Waiting for {pub_settings.publish_interval_seconds} seconds...")
+      time.sleep(pub_settings.publish_interval_seconds)
 
   logger.info("Finished publishing messages.")
 
