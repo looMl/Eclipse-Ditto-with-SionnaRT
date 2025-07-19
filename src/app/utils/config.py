@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 def get_project_root() -> str:
     # This navigates up three levels from app/utils/config.py to the project root.
-    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 CONFIG_PATH = os.path.join(get_project_root() , "config.yaml")
 
@@ -34,8 +34,33 @@ class MQTTSettings:
     subscriber: MQTTSubscriberSettings
 
 @dataclass(frozen=True)
+class SimulationSettings:
+    max_depth: int
+    num_samples: float
+
+@dataclass(frozen=True)
+class RenderingSettings:
+    resolution: list
+    num_samples: int
+    show_devices: bool
+
+@dataclass(frozen=True)
+class CameraSettings:
+    position: list
+    orientation: list
+    look_at: list
+
+@dataclass(frozen=True)
+class TransmitterSettings:
+    position: list
+
+@dataclass(frozen=True)
 class SionnartSettings:
     script_name: str
+    transmitter: TransmitterSettings
+    camera: CameraSettings
+    simulation: SimulationSettings
+    rendering: RenderingSettings
 
 @dataclass(frozen=True)
 class LoggingSettings:
@@ -50,7 +75,7 @@ class Settings:
 def _load_config(config_path: str) -> Settings:
     """
     Loads YAML config file and maps values on dataclass objects.
-    Critical exception if file not found or incorrect.
+    Raises critical exception if file not found or incorrect.
     """
     logger.info(f"Loading configuration from: {config_path}")
     try:
@@ -64,7 +89,13 @@ def _load_config(config_path: str) -> Settings:
                 publisher=MQTTPublisherSettings(**config_data['mqtt']['publisher']),
                 subscriber=MQTTSubscriberSettings(**config_data['mqtt']['subscriber'])
             ),
-            sionnart=SionnartSettings(**config_data['sionnart'])
+            sionnart=SionnartSettings(
+                script_name=config_data['sionnart']['script_name'],
+                transmitter=TransmitterSettings(**config_data['sionnart']['transmitter']),
+                camera=CameraSettings(**config_data['sionnart']['camera']),
+                simulation=SimulationSettings(**config_data['sionnart']['paths_simulation']),
+                rendering=RenderingSettings(**config_data['sionnart']['rendering'])
+            )
         )
     except FileNotFoundError:
         logger.critical(f"Couldn't find config file in '{config_path}'. Cannot start.")

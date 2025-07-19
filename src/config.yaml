@@ -1,0 +1,41 @@
+# Available levels: DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL
+logging:
+  level: "INFO"
+
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  keepalive: 60
+ 
+  publisher:
+    client_id_prefix: "publish-"
+    thing_id: "org.povo:phone"
+    base_topic: "devices/in"
+    publish_interval_seconds: 25
+    num_messages: 5
+    initial_translation: -30.0
+    translation_increment: 10.0
+
+  subscriber:
+    client_id_prefix: "subscribe-"
+    base_topic: "devices/out"
+
+sionnart:
+  script_name: "SionnaRTSimulator.py"
+
+  transmitter:
+    position: [-39, -15, 4]
+
+  camera:
+    position: [22, 47, 110]
+    orientation: [0, 0, 0]
+    look_at: [-18, 0, -8]
+  
+  paths_simulation:
+    max_depth: 5  # Controls reflection/diffraction depth. Higher = more realistic but significantly slower.
+    num_samples: 1e6  # Number of rays cast from Transmitter. Higher = better chance of finding paths, more accurate results, but slower.
+    
+  rendering:
+    resolution: [480, 320]
+    num_samples: 512  # Rendering parameters - adjust for quality vs. speed trade-off.
+    show_devices: True

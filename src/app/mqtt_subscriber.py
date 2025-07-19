@@ -56,7 +56,7 @@ def on_message(client, userdata, message):
   execute_sionnart_script(position, orientation)
 
 def execute_sionnart_script(position: list, orientation: list):
-  sionnart_script_path = os.path.join(get_project_root(), "src/app", settings.sionnart.script_name)
+  sionnart_script_path = os.path.join(get_project_root(), "app", settings.sionnart.script_name)
 
   try:
     command = [
