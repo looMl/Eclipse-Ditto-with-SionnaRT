@@ -95,6 +95,10 @@ def _load_config(config_path: str) -> Settings:
         with open(config_path, "r") as f:
             config_data = yaml.safe_load(f)
 
+        sim_settings = config_data["sionnart"]["paths_simulation"]
+        render_settings = config_data["sionnart"]["rendering"]
+        transmitter_settings = config_data["sionnart"]["transmitter"]
+
         return Settings(
             logging=LoggingSettings(**config_data["logging"]),
             mqtt=MQTTSettings(
@@ -107,15 +111,20 @@ def _load_config(config_path: str) -> Settings:
                 subscriber=MQTTSubscriberSettings(**config_data["mqtt"]["subscriber"]),
             ),
             sionnart=SionnartSettings(
-                script_name=config_data["sionnart"]["script_name"],
+                script_name=str(config_data["sionnart"]["script_name"]),
                 transmitter=TransmitterSettings(
-                    **config_data["sionnart"]["transmitter"]
+                    position=list(transmitter_settings["position"])
                 ),
                 camera=CameraSettings(**config_data["sionnart"]["camera"]),
                 simulation=SimulationSettings(
-                    **config_data["sionnart"]["paths_simulation"]
+                    max_depth=int(sim_settings["max_depth"]),
+                    num_samples=float(sim_settings["num_samples"]),
                 ),
-                rendering=RenderingSettings(**config_data["sionnart"]["rendering"]),
+                rendering=RenderingSettings(
+                    resolution=list(render_settings["resolution"]),
+                    num_samples=int(render_settings["num_samples"]),
+                    show_devices=render_settings["show_devices"],
+                ),
             ),
         )
     except FileNotFoundError:
