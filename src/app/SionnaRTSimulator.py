@@ -1,7 +1,5 @@
-from PIL import Image
 import os
 import sys
-import numpy as np 
 import json
 import argparse
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera, PathSolver
@@ -10,12 +8,16 @@ from app.utils.config import settings, get_project_root
 
 # -1: CPU Only execution - 0: GPU only if compatible
 # Newer versions of SionnaRT use Dr.Jit which requires your GPU to have a Compute Capability (SM) > 7.0
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1' # In my case, my GPU is not supported so I have to rely on the CPU (slower)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-import matplotlib; matplotlib.use('Agg')
-import tensorflow as tf
+os.environ["CUDA_VISIBLE_DEVICES"] = (
+    "-1"  # In my case, my GPU is not supported so I have to rely on the CPU (slower)
+)
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+import matplotlib
 
-class SionnaRTSimulator():
+matplotlib.use("Agg")
+
+
+class SionnaRTSimulator:
     def __init__(self, scene_filename: str = "povo_scene.xml"):
         self._scene = self._load_scene(scene_filename)
         self._camera = self._setup_camera()
@@ -29,38 +31,43 @@ class SionnaRTSimulator():
             logger.info(f"Loading scene from: {filepath}")
             return load_scene(filepath)
         except FileNotFoundError:
-            logger.critical(f"Scene file not found at '{filepath}'. Cannot initialize simulator.")
+            logger.critical(
+                f"Scene file not found at '{filepath}'. Cannot initialize simulator."
+            )
             raise
-    
-    def _setup_camera():
+
+    def _setup_camera(self):
         try:
             camera = Camera(
                 position=settings.sionnart.camera.position,
-                orientation=settings.sionnart.camera.orientation,
-                look_at=settings.sionnart.camera.look_at
+                look_at=settings.sionnart.camera.look_at,
             )
             logger.info("Camera object created successfully.")
             return camera
         except Exception as e:
             logger.error(f"Failed to initialize Camera: {e}", exc_info=True)
             raise
-    
+
     def _configure_antenna_arrays(self):
         # Antenna parameters (rows, cols, spacing, pattern, polarization) significantly affect simulation results.
         logger.info("Configuring TX/RX antenna arrays.")
 
         self._scene.tx_array = PlanarArray(
-            num_rows=4, num_cols=4, # 4x4 array
-            vertical_spacing=0.5, horizontal_spacing=0.5, # Spacing in wavelengths
+            num_rows=4,
+            num_cols=4,  # 4x4 array
+            vertical_spacing=0.5,
+            horizontal_spacing=0.5,  # Spacing in wavelengths
             pattern="tr38901",  # Standard 3GPP antenna pattern
-            polarization="V"  # Vertical polarization
+            polarization="V",  # Vertical polarization
         )
 
         self._scene.rx_array = PlanarArray(
-            num_rows=1, num_cols=1, # Single element
-            vertical_spacing=0.5, horizontal_spacing=0.5,
-            pattern="dipole", # Simple dipole pattern
-            polarization="cross"  # Cross-polarized to capture different signal components
+            num_rows=1,
+            num_cols=1,  # Single element
+            vertical_spacing=0.5,
+            horizontal_spacing=0.5,
+            pattern="dipole",  # Simple dipole pattern
+            polarization="cross",  # Cross-polarized to capture different signal components
         )
         logger.info("Antenna arrays configured.")
 
@@ -70,29 +77,33 @@ class SionnaRTSimulator():
         self._scene.add(self._tx)
         self._scene.frequency = 2.14e9
         self._scene.synthetic_array = True
-        logger.info(f"Scene frequency set to {(self._scene.frequency / 1e9).numpy().item():.2f} GHz.")
+        logger.info(
+            f"Scene frequency set to {(self._scene.frequency / 1e9).numpy().item():.2f} GHz."
+        )
 
     def _compute_paths(self):
         try:
             sim_settings = settings.sionnart.simulation
-            logger.info(f"Computing paths with max_depth={sim_settings.max_depth}, num_samples={sim_settings.num_samples:.1e}...")
+            logger.info(
+                f"Computing paths with max_depth={sim_settings.max_depth}, num_samples={sim_settings.num_samples:.1e}..."
+            )
             solver = PathSolver()
-            logger.info(f"Path computation finished.")
+            logger.info("Path computation finished.")
             return solver(
                 self._scene,
                 max_depth=sim_settings.max_depth,
-                samples_per_src=int(sim_settings.num_samples)
+                samples_per_src=int(sim_settings.num_samples),
             )
         except Exception as e:
             logger.error(f"Critical error during path computation: {e}", exc_info=True)
             raise
 
     def _render_and_save(self, paths):
-        logger.info(f"Starting scene rendering.")
+        logger.info("Starting scene rendering.")
         renders_dir = os.path.join(get_project_root(), "app", "renders")
         os.makedirs(renders_dir, exist_ok=True)
         output_path = self._get_next_filename(renders_dir, "paths_render", "png")
-        
+
         logger.info(f"Rendering scene to {output_path}...")
         self._scene.render_to_file(
             camera=self._camera,
@@ -100,7 +111,7 @@ class SionnaRTSimulator():
             paths=paths,
             show_devices=settings.sionnart.rendering.show_devices,
             num_samples=settings.sionnart.rendering.num_samples,
-            resolution=settings.sionnart.rendering.resolution
+            resolution=settings.sionnart.rendering.resolution,
         )
         logger.info("Rendering complete.")
 
@@ -118,52 +129,61 @@ class SionnaRTSimulator():
         Runs a single simulation for a given receiver position and orientation.
         This method is designed to be called repeatedly.
         """
-        logger.info(f"Added RX at {rx_position} with orientation {rx_ori}.")
+        logger.info(f"Added RX at {rx_position} with orientation {rx_orientation}.")
         rx = Receiver("rx", rx_position, rx_orientation)
         self._scene.add(rx)
         self._tx.look_at(rx)
-        
+
         try:
             paths = self._compute_paths()
             self._render_and_save(paths)
         finally:
             # Ensure the dynamic receiver is removed after each simulation to prevent scene pollution and memory leaks.
             self._scene.remove("rx")
-            logger.debug(f"Receiver 'rx' removed from the scene.")
+            logger.debug("Receiver 'rx' removed from the scene.")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
 
     def _validate_coordinate(coord_list: list, name: str) -> None:
         """
         Validates that the input is a list of 3 numbers.
         Raises ValueError if validation fails.
         """
-        if not isinstance(coord_list, list) or len(coord_list) != 3 or not all(isinstance(x, (int, float)) for x in coord_list):
+        if (
+            not isinstance(coord_list, list)
+            or len(coord_list) != 3
+            or not all(isinstance(x, (int, float)) for x in coord_list)
+        ):
             raise ValueError(f"Argument '{name}' must be a JSON list of 3 numbers.")
-    
+
     def parse_arguments():
         """Parses command-line arguments for receiver position and orientation."""
-        parser = argparse.ArgumentParser(description="Run a single SionnaRT simulation.")
-        
-        parser.add_argument('--position', type=str, required=True)
-        parser.add_argument('--orientation', type=str, required=True)
-        
+        parser = argparse.ArgumentParser(
+            description="Run a single SionnaRT simulation."
+        )
+
+        parser.add_argument("--position", type=str, required=True)
+        parser.add_argument("--orientation", type=str, required=True)
+
         args = parser.parse_args()
         logger.info("Parsing arguments...")
-        
+
         try:
             rx_pos = json.loads(args.position)
             _validate_coordinate(rx_pos, "position")
 
             rx_ori = json.loads(args.orientation)
             _validate_coordinate(rx_ori, "orientation")
-                
-            logger.info(f"Successfully parsed position: {rx_pos} and orientation: {rx_ori}")
+
+            logger.info(
+                f"Successfully parsed position: {rx_pos} and orientation: {rx_ori}"
+            )
             return rx_pos, rx_ori
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Invalid arguments provided: {e}", exc_info=True)
             raise
-    
+
     logger.info("--- Running SionnaRT Simulation ---")
     try:
         rx_pos, rx_ori = parse_arguments()
@@ -171,5 +191,7 @@ if __name__ == '__main__':
         simulator.run_simulation(rx_pos, rx_ori)
         logger.info("--- Standalone simulation finished successfully. ---")
     except Exception as e:
-        logger.critical(f"A critical error occurred during standalone execution: {e}", exc_info=True)
+        logger.critical(
+            f"A critical error occurred during standalone execution: {e}", exc_info=True
+        )
         sys.exit(1)
