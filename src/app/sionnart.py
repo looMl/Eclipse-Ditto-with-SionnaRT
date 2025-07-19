@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np 
 import json
 import argparse
-import logging
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera, PathSolver
 from loguru import logger
 

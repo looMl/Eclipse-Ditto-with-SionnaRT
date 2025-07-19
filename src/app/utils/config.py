@@ -5,8 +5,8 @@ from loguru import logger
 from dataclasses import dataclass
 
 def get_project_root() -> str:
-    # This navigates up two levels from app/utils/config.py to the project root.
-    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # This navigates up three levels from app/utils/config.py to the project root.
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 CONFIG_PATH = os.path.join(get_project_root() , "config.yaml")
 

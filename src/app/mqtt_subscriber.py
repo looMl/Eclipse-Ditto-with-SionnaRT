@@ -16,7 +16,7 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
   subscribed_topic = f"{sub_settings.base_topic}/#"
 
   if reason_code == 0 and client.is_connected():
-    logger.info(f"Successfully connected to MQTT Broker at {settings.mqtt.broker_host}:{settings.mqtt.broker_host}")
+    logger.info(f"Successfully connected to MQTT Broker at {settings.mqtt.broker_host}:{settings.mqtt.broker_port}")
     try:
       client.subscribe(subscribed_topic)
       logger.info(f"Subscribed to topic: {subscribed_topic}")
@@ -56,11 +56,11 @@ def on_message(client, userdata, message):
   execute_sionnart_script(position, orientation)
 
 def execute_sionnart_script(position: list, orientation: list):
-  sionnart_script_path = os.path.join(get_project_root(), "app", settings.sionnart.script_name)
+  sionnart_script_path = os.path.join(get_project_root(), "src/app", settings.sionnart.script_name)
 
   try:
     command = [
-      sys.executable,   # Uses same python interpreter that is running the subscriber
+      sys.executable, # Uses same python interpreter that is running the subscriber
       sionnart_script_path,
       "--position", json.dumps(position),
       "--orientation", json.dumps(orientation)
