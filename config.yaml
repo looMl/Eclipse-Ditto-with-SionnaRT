@@ -5,10 +5,9 @@ logging:
 mqtt:
   broker_host: "localhost"
   broker_port: 1883
-  client_id: "sionna"
   keepalive: 60
  
-publisher:
+  publisher:
     client_id_prefix: "publish-"
     thing_id: "org.povo:phone"
     base_topic: "devices/in"
@@ -17,9 +16,9 @@ publisher:
     initial_translation: -30.0
     translation_increment: 10.0
 
-subscriber:
-  client_id_prefix: "subscribe-"
-  base_topic: "devices/out"
+  subscriber:
+    client_id_prefix: "subscribe-"
+    base_topic: "devices/out"
 
 sionnart:
   script_name: "sionnart.py"

@@ -3,7 +3,7 @@ name = "ditto-sionnart-bridge"
 version = "0.1.0"
 description = "A bridge for real-time radio propagation analysis using Eclipse Ditto and SionnaRT."
 readme = "README.md"
-requires-python = ">=3.8, <3.12"
+requires-python = ">=3.10, <3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -13,6 +13,7 @@ classifiers = [
 dependencies = [
     "sionna-rt==1.1.0",
     "tensorflow==2.19.0",
+    "tensorflow-io-gcs-filesystem<=0.31.0; sys_platform == 'win32'",
     "matplotlib==3.10.3",
     "paho-mqtt",
     "numpy",
