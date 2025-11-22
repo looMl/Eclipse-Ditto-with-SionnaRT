@@ -1,20 +1,14 @@
 import yaml
-import os
-import sys
+from pathlib import Path
+from typing import List, Literal
+from pydantic import BaseModel, Field, field_validator
 from loguru import logger
-from dataclasses import dataclass
+import sys
+
+# --- Models schemas ---
 
 
-def get_project_root() -> str:
-    # This navigates up three levels from app/utils/config.py to the project root.
-    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-CONFIG_PATH = os.path.join(get_project_root(), "config.yaml")
-
-
-@dataclass(frozen=True)
-class MQTTPublisherSettings:
+class MQTTPublisherSettings(BaseModel):
     client_id_prefix: str
     thing_id: str
     base_topic: str
@@ -24,14 +18,12 @@ class MQTTPublisherSettings:
     translation_increment: float
 
 
-@dataclass(frozen=True)
-class MQTTSubscriberSettings:
+class MQTTSubscriberSettings(BaseModel):
     client_id_prefix: str
     base_topic: str
 
 
-@dataclass(frozen=True)
-class MQTTSettings:
+class MQTTSettings(BaseModel):
     broker_host: str
     broker_port: int
     keepalive: int
@@ -39,103 +31,79 @@ class MQTTSettings:
     subscriber: MQTTSubscriberSettings
 
 
-@dataclass(frozen=True)
-class SimulationSettings:
+class TransmitterSettings(BaseModel):
+    position: List[float]
+
+    @field_validator("position")
+    def check_len(cls, v):
+        if len(v) != 3:
+            raise ValueError("Position must be a list of 3 coordinates [x, y, z]")
+        return v
+
+
+class CameraSettings(BaseModel):
+    position: List[float]
+    orientation: List[float]
+    look_at: List[float]
+
+
+class SimulationSettings(BaseModel):
     max_depth: int
     num_samples: float
 
 
-@dataclass(frozen=True)
-class RenderingSettings:
-    resolution: list
+class RenderingSettings(BaseModel):
+    resolution: List[int]
     num_samples: int
     show_devices: bool
 
 
-@dataclass(frozen=True)
-class CameraSettings:
-    position: list
-    orientation: list
-    look_at: list
-
-
-@dataclass(frozen=True)
-class TransmitterSettings:
-    position: list
-
-
-@dataclass(frozen=True)
-class SionnartSettings:
+class SionnartSettings(BaseModel):
     script_name: str
     transmitter: TransmitterSettings
     camera: CameraSettings
-    simulation: SimulationSettings
+    simulation: SimulationSettings = Field(..., alias="paths_simulation")
     rendering: RenderingSettings
 
 
-@dataclass(frozen=True)
-class LoggingSettings:
-    level: str
+class LoggingSettings(BaseModel):
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
-@dataclass(frozen=True)
-class Settings:
+class Settings(BaseModel):
     logging: LoggingSettings
     mqtt: MQTTSettings
     sionnart: SionnartSettings
 
 
-def _load_config(config_path: str) -> Settings:
-    """
-    Loads YAML config file and maps values on dataclass objects.
-    Raises critical exception if file not found or incorrect.
-    """
+# --- Load logic ---
+
+
+def get_project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def load_settings() -> Settings:
+    """Loads the config file and validates it with Pydantic."""
+    config_path = get_project_root() / "config.yaml"
     logger.info(f"Loading configuration from: {config_path}")
+
+    if not config_path.exists():
+        logger.critical(f"Config file not found at {config_path}")
+        sys.exit(1)
+
     try:
         with open(config_path, "r") as f:
-            config_data = yaml.safe_load(f)
+            raw_config = yaml.safe_load(f)
 
-        sim_settings = config_data["sionnart"]["paths_simulation"]
-        render_settings = config_data["sionnart"]["rendering"]
-        transmitter_settings = config_data["sionnart"]["transmitter"]
+        return Settings(**raw_config)
 
-        return Settings(
-            logging=LoggingSettings(**config_data["logging"]),
-            mqtt=MQTTSettings(
-                **{
-                    k: v
-                    for k, v in config_data["mqtt"].items()
-                    if k not in ["publisher", "subscriber"]
-                },
-                publisher=MQTTPublisherSettings(**config_data["mqtt"]["publisher"]),
-                subscriber=MQTTSubscriberSettings(**config_data["mqtt"]["subscriber"]),
-            ),
-            sionnart=SionnartSettings(
-                script_name=str(config_data["sionnart"]["script_name"]),
-                transmitter=TransmitterSettings(
-                    position=list(transmitter_settings["position"])
-                ),
-                camera=CameraSettings(**config_data["sionnart"]["camera"]),
-                simulation=SimulationSettings(
-                    max_depth=int(sim_settings["max_depth"]),
-                    num_samples=float(sim_settings["num_samples"]),
-                ),
-                rendering=RenderingSettings(
-                    resolution=list(render_settings["resolution"]),
-                    num_samples=int(render_settings["num_samples"]),
-                    show_devices=render_settings["show_devices"],
-                ),
-            ),
-        )
-    except FileNotFoundError:
-        logger.critical(f"Couldn't find config file in '{config_path}'. Cannot start.")
-        sys.exit(1)
-    except (yaml.YAMLError, TypeError, KeyError) as e:
-        logger.critical(
-            f"Error reading or parsing the config file '{config_path}': {e}",
-            exc_info=True,
-        )
+    except Exception as e:
+        logger.critical(f"Configuration error: {e}")
         sys.exit(1)
 
 
-settings = _load_config(CONFIG_PATH)
+try:
+    settings = load_settings()
+except Exception:
+    sys.exit(1)
