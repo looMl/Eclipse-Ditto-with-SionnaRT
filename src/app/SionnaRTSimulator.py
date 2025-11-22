@@ -2,17 +2,18 @@ import os
 import sys
 import json
 import argparse
+from pathlib import Path
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera, PathSolver
 from loguru import logger
-from app.utils.config import settings, get_project_root
+from app.utils.config import settings as cfg, get_project_root
+
+import matplotlib
 
 # -1: CPU Only execution - 0: GPU only if compatible
 # Newer versions of SionnaRT use Dr.Jit which requires your GPU to have a Compute Capability (SM) > 7.0
-os.environ["CUDA_VISIBLE_DEVICES"] = (
-    "-1"  # In my case, my GPU is not supported so I have to rely on the CPU (slower)
-)
+# In my case, my GPU is not supported so I have to rely on the CPU (slower)
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-import matplotlib
 
 matplotlib.use("Agg")
 
@@ -25,11 +26,10 @@ class SionnaRTSimulator:
         self._add_transmitter()
 
     def _load_scene(self, scene_filename: str):
+        filepath = get_project_root() / "scene" / scene_filename
         try:
-            scene_dir = os.path.join(get_project_root(), "scene")
-            filepath = os.path.join(scene_dir, scene_filename)
             logger.info(f"Loading scene from: {filepath}")
-            return load_scene(filepath)
+            return load_scene(str(filepath))
         except FileNotFoundError:
             logger.critical(
                 f"Scene file not found at '{filepath}'. Cannot initialize simulator."
@@ -39,8 +39,8 @@ class SionnaRTSimulator:
     def _setup_camera(self):
         try:
             camera = Camera(
-                position=settings.sionnart.camera.position,
-                look_at=settings.sionnart.camera.look_at,
+                position=cfg.sionnart.camera.position,
+                look_at=cfg.sionnart.camera.look_at,
             )
             logger.info("Camera object created successfully.")
             return camera
@@ -72,62 +72,71 @@ class SionnaRTSimulator:
         logger.info("Antenna arrays configured.")
 
     def _add_transmitter(self):
-        logger.info(f"Added TX at {settings.sionnart.transmitter.position}.")
-        self._tx = Transmitter("tx", settings.sionnart.transmitter.position)
+        pos = cfg.sionnart.transmitter.position
+        logger.info(f"Added TX at {pos}.")
+        self._tx = Transmitter("tx", pos)
         self._scene.add(self._tx)
+
+        # Set frequency (2.14 GHz) and synthetic array mode
         self._scene.frequency = 2.14e9
         self._scene.synthetic_array = True
+
         logger.info(
             f"Scene frequency set to {(self._scene.frequency / 1e9).numpy().item():.2f} GHz."
         )
 
     def _compute_paths(self):
         try:
-            sim_settings = settings.sionnart.simulation
+            sim_settings = cfg.sionnart.simulation
             logger.info(
-                f"Computing paths with max_depth={sim_settings.max_depth}, num_samples={sim_settings.num_samples:.1e}..."
+                f"Computing paths with max_depth={sim_settings.max_depth}, "
+                f"num_samples={sim_settings.num_samples:.1e}..."
             )
             solver = PathSolver()
-            logger.info("Path computation finished.")
-            return solver(
+            paths = solver(
                 self._scene,
                 max_depth=sim_settings.max_depth,
                 samples_per_src=int(sim_settings.num_samples),
             )
+            logger.info("Path computation finished.")
+            return paths
         except Exception as e:
             logger.error(f"Critical error during path computation: {e}", exc_info=True)
             raise
 
     def _render_and_save(self, paths):
         logger.info("Starting scene rendering.")
-        renders_dir = os.path.join(get_project_root(), "app", "renders")
-        os.makedirs(renders_dir, exist_ok=True)
+
+        renders_dir = get_project_root() / "app" / "renders"
+        renders_dir.mkdir(parents=True, exist_ok=True)
+
         output_path = self._get_next_filename(renders_dir, "paths_render", "png")
 
         logger.info(f"Rendering scene to {output_path}...")
         self._scene.render_to_file(
             camera=self._camera,
-            filename=output_path,
+            filename=str(output_path),
             paths=paths,
-            show_devices=settings.sionnart.rendering.show_devices,
-            num_samples=settings.sionnart.rendering.num_samples,
-            resolution=settings.sionnart.rendering.resolution,
+            show_devices=cfg.sionnart.rendering.show_devices,
+            num_samples=cfg.sionnart.rendering.num_samples,
+            resolution=cfg.sionnart.rendering.resolution,
         )
         logger.info("Rendering complete.")
 
-    def _get_next_filename(self, directory, base_name, extension):
+    def _get_next_filename(
+        self, directory: Path, base_name: str, extension: str
+    ) -> Path:
         i = 1
         while True:
             filename = f"{base_name}_{i}.{extension}"
-            file_path = os.path.join(directory, filename)
-            if not os.path.exists(file_path):
+            file_path = directory / filename
+            if not file_path.exists():
                 return file_path
             i += 1
 
     def run_simulation(self, rx_position: list, rx_orientation: list):
         """
         Runs a single simulation for a given receiver position and orientation.
-        This method is designed to be called repeatedly.
         """
         logger.info(f"Added RX at {rx_position} with orientation {rx_orientation}.")
         rx = Receiver("rx", rx_position, rx_orientation)
@@ -148,23 +157,28 @@ if __name__ == "__main__":
     def _validate_coordinate(coord_list: list, name: str) -> None:
         """
         Validates that the input is a list of 3 numbers.
-        Raises ValueError if validation fails.
         """
         if (
             not isinstance(coord_list, list)
             or len(coord_list) != 3
             or not all(isinstance(x, (int, float)) for x in coord_list)
         ):
-            raise ValueError(f"Argument '{name}' must be a JSON list of 3 numbers.")
+            raise ValueError(
+                f"Argument '{name}' must be a JSON list of 3 numbers [x, y, z]."
+            )
 
     def parse_arguments():
-        """Parses command-line arguments for receiver position and orientation."""
+        """Parses command-line arguments."""
         parser = argparse.ArgumentParser(
             description="Run a single SionnaRT simulation."
         )
 
-        parser.add_argument("--position", type=str, required=True)
-        parser.add_argument("--orientation", type=str, required=True)
+        parser.add_argument(
+            "--position", type=str, required=True, help="JSON list [x, y, z]"
+        )
+        parser.add_argument(
+            "--orientation", type=str, required=True, help="JSON list [x, y, z]"
+        )
 
         args = parser.parse_args()
         logger.info("Parsing arguments...")
@@ -176,9 +190,7 @@ if __name__ == "__main__":
             rx_ori = json.loads(args.orientation)
             _validate_coordinate(rx_ori, "orientation")
 
-            logger.info(
-                f"Successfully parsed position: {rx_pos} and orientation: {rx_ori}"
-            )
+            logger.info(f"Parsed arguments - Position: {rx_pos}, Orientation: {rx_ori}")
             return rx_pos, rx_ori
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Invalid arguments provided: {e}", exc_info=True)
