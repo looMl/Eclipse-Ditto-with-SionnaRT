@@ -18,7 +18,7 @@ class MQTTPublisherSettings(BaseModel):
     translation_increment: float
 
 
-class MQTTSubscriberSettings(BaseModel):
+class MQTTWorkerSettings(BaseModel):
     client_id_prefix: str
     base_topic: str
 
@@ -28,7 +28,7 @@ class MQTTSettings(BaseModel):
     broker_port: int
     keepalive: int
     publisher: MQTTPublisherSettings
-    subscriber: MQTTSubscriberSettings
+    worker: MQTTWorkerSettings
 
 
 class TransmitterSettings(BaseModel):
