@@ -4,16 +4,19 @@ import time
 import multiprocessing
 import queue
 from loguru import logger
-from paho.mqtt import client as mqtt_client
 
 from app.utils.config import settings as cfg
 from app.SionnaRTSimulator import SionnaRTSimulator
+from app.core.mqtt import MQTTClientWrapper
 
 logger.remove()
 logger.add(sys.stdout, level=cfg.logging.level)
 
 
 def run_simulation_process(task_queue: multiprocessing.Queue):
+    """
+    Worker process function that runs the simulation.
+    """
     logger.info("Worker: Initializing SionnaRT Engine...")
 
     try:
@@ -49,80 +52,89 @@ def run_simulation_process(task_queue: multiprocessing.Queue):
             continue
 
 
-def on_message(client, userdata, message):
-    """Parses the message and puts it into the queue if the worker is free."""
-    task_queue = userdata
+class BridgeService:
+    def __init__(self, settings):
+        self.settings = settings
+        self.task_queue = multiprocessing.Queue(maxsize=1)
+        self.worker_process = None
+        self.mqtt_client = None
 
-    try:
-        payload = json.loads(message.payload.decode())
+    def _on_message(self, client, userdata, message):
+        """Parses the message and puts it into the queue if the worker is free."""
+        try:
+            payload = json.loads(message.payload.decode())
 
-        pos = payload.get("position")
-        ori = payload.get("orientation")
+            pos = payload.get("position")
+            ori = payload.get("orientation")
 
-        if pos and ori:
-            try:
-                # If the queue is full (Sionna is busy), this raises queue.Full as Drop Oldest strategy
-                task_queue.put_nowait((pos, ori))
-                logger.debug("Main: Task queued successfully.")
-            except queue.Full:
-                logger.warning(
-                    "Main: Simulation busy! Dropping incoming frame to maintain real-time."
-                )
-        else:
-            logger.warning(f"Main: Received invalid payload: {payload}")
+            if pos and ori:
+                try:
+                    # If the queue is full (Sionna is busy), this raises queue.Full as Drop Oldest strategy
+                    self.task_queue.put_nowait((pos, ori))
+                    logger.debug("Main: Task queued successfully.")
+                except queue.Full:
+                    logger.warning(
+                        "Main: Simulation busy! Dropping incoming frame to maintain real-time."
+                    )
+            else:
+                logger.warning(f"Main: Received invalid payload: {payload}")
 
-    except json.JSONDecodeError:
-        logger.error("Main: Failed to decode JSON payload.")
-    except Exception as e:
-        logger.error(f"Main: Unexpected error in MQTT callback: {e}")
+        except json.JSONDecodeError:
+            logger.error("Main: Failed to decode JSON payload.")
+        except Exception as e:
+            logger.error(f"Main: Unexpected error in MQTT callback: {e}")
 
+    def start(self):
+        # Start Worker
+        self.worker_process = multiprocessing.Process(
+            target=run_simulation_process, args=(self.task_queue,), name="SionnaWorker"
+        )
+        self.worker_process.start()
 
-def run():
-    """Sets up the worker process and the MQTT listener."""
-    # maxsize=1 ensures we only process the latest available data
-    task_queue = multiprocessing.Queue(maxsize=1)
+        # Start MQTT
+        work_settings = self.settings.mqtt.worker
+        self.mqtt_client = MQTTClientWrapper(
+            self.settings.mqtt.broker_host,
+            self.settings.mqtt.broker_port,
+            self.settings.mqtt.keepalive,
+            work_settings.client_id_prefix + "bridge",
+        )
 
-    worker = multiprocessing.Process(
-        target=run_simulation_process, args=(task_queue,), name="SionnaWorker"
-    )
-    worker.start()
+        self.mqtt_client.set_on_message(self._on_message)
 
-    work_settings = cfg.mqtt.worker
-    client_id = f"{work_settings.client_id_prefix}bridge"
+        try:
+            self.mqtt_client.connect()
+            topic = f"{work_settings.base_topic}/#"
+            self.mqtt_client.subscribe(topic)
 
-    client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION2, client_id)
+            logger.info("Main: Bridge Service Started. Press Ctrl+C to stop.")
+            self.mqtt_client.loop_forever()
 
-    # Pass the queue to the callback as userdata
-    client.user_data_set(task_queue)
-    client.on_message = on_message
+        except KeyboardInterrupt:
+            logger.info("Main: Stopping application...")
+        except Exception as e:
+            logger.critical(f"Main: MQTT Error: {e}")
+        finally:
+            self.stop()
 
-    try:
-        logger.info(f"Main: Connecting to MQTT Broker at {cfg.mqtt.broker_host}...")
-        client.connect(cfg.mqtt.broker_host, cfg.mqtt.broker_port, cfg.mqtt.keepalive)
-
-        topic = f"{work_settings.base_topic}/#"
-        client.subscribe(topic)
-        logger.info(f"Main: Subscribed to {topic}")
-
-        client.loop_forever()
-
-    except KeyboardInterrupt:
-        logger.info("Main: Stopping application...")
-    except Exception as e:
-        logger.critical(f"Main: MQTT Error: {e}")
-    finally:
-        client.disconnect()
+    def stop(self):
+        if self.mqtt_client:
+            self.mqtt_client.stop()
 
         # Send stop signal to worker
-        task_queue.put(None)
-        worker.join(timeout=5)
+        if self.worker_process and self.worker_process.is_alive():
+            self.task_queue.put(None)
+            self.worker_process.join(timeout=5)
 
-        if worker.is_alive():
-            logger.warning("Main: Worker did not stop gracefully, forcing termination.")
-            worker.terminate()
+            if self.worker_process.is_alive():
+                logger.warning(
+                    "Main: Worker did not stop gracefully, forcing termination."
+                )
+                self.worker_process.terminate()
 
         logger.info("System Shutdown Complete.")
 
 
 if __name__ == "__main__":
-    run()
+    service = BridgeService(cfg)
+    service.start()

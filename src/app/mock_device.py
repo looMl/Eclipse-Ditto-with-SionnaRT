@@ -6,91 +6,86 @@ from loguru import logger
 from paho.mqtt import client as mqtt_client
 
 from app.utils.config import settings as cfg
+from app.core.mqtt import MQTTClientWrapper
 
 logger.remove()
 logger.add(sys.stdout, level=cfg.logging.level)
 
 
-def connect_mqtt() -> mqtt_client.Client:
-    client_id = f"{cfg.mqtt.publisher.client_id_prefix}{random.randint(0, 1000)}"
-    client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION2, client_id)
+class DeviceSimulator:
+    def __init__(self, settings):
+        self.pub_settings = settings.mqtt.publisher
+        self.mqtt_settings = settings.mqtt
 
-    try:
-        client.connect(cfg.mqtt.broker_host, cfg.mqtt.broker_port, cfg.mqtt.keepalive)
-        logger.info(f"Connected to MQTT Broker at {cfg.mqtt.broker_host}")
-        return client
-    except Exception as e:
-        logger.critical(f"Failed to connect to MQTT Broker: {e}")
-        sys.exit(1)
+        self.client = MQTTClientWrapper(
+            self.mqtt_settings.broker_host,
+            self.mqtt_settings.broker_port,
+            self.mqtt_settings.keepalive,
+            self.pub_settings.client_id_prefix,
+        )
 
+        self.current_x = 0.0
+        self.current_y = float(self.pub_settings.initial_translation)
+        self.fixed_z = 1.5
+        self.topic = f"{self.pub_settings.base_topic}/{self.pub_settings.thing_id}"
 
-def get_next_position(current_x: float, current_y: float, increment: float):
-    """
-    Calculates the next position.
-    - Y axis: moves forward by the configured increment value.
-    - X axis: adds a small random 'wobble' to simulate natural walking.
-    """
-    new_y = current_y + increment
-    wobble = increment * 0.2  # Lateral deviation
-    new_x = current_x + random.uniform(-wobble, wobble)
+    def get_next_position(self, increment: float):
+        """
+        Calculates the next position.
+        - Y axis: moves forward by the configured increment value.
+        - X axis: adds a small random 'wobble' to simulate natural walking.
+        """
+        self.current_y += increment
+        wobble = increment * 0.2  # Lateral deviation
+        self.current_x += random.uniform(-wobble, wobble)
 
-    return new_x, new_y
+    def run(self):
+        try:
+            self.client.connect()
+            self.client.start()
 
-
-def run():
-    pub_settings = cfg.mqtt.publisher
-    client = connect_mqtt()
-    client.loop_start()
-
-    # Topic structure: devices/in/<thing_id>
-    topic = f"{pub_settings.base_topic}/{pub_settings.thing_id}"
-
-    # Initial State
-    current_y = float(pub_settings.initial_translation)
-    current_x = 0.0
-    fixed_z = 1.5
-
-    logger.info(f"Starting Device Simulation. Target Topic: {topic}")
-    logger.info(f"Initial Pos: [x={current_x}, y={current_y}, z={fixed_z}]")
-
-    msg_count = 0
-    limit = pub_settings.num_messages
-
-    try:
-        while True:
-            if limit > 0 and msg_count >= limit:
-                logger.info("Message limit reached. Stopping.")
-                break
-
-            current_x, current_y = get_next_position(
-                current_x, current_y, pub_settings.translation_increment
+            logger.info(f"Starting Device Simulation. Target Topic: {self.topic}")
+            logger.info(
+                f"Initial Pos: [x={self.current_x}, y={self.current_y}, z={self.fixed_z}]"
             )
 
-            payload = {
-                "thingId": pub_settings.thing_id,
-                "position": [current_x, current_y, fixed_z],
-                "orientation": [0.0, 0.0, 0.0],
-            }
+            msg_count = 0
+            limit = self.pub_settings.num_messages
 
-            payload_str = json.dumps(payload)
-            info = client.publish(topic, payload_str)
+            while True:
+                if limit > 0 and msg_count >= limit:
+                    logger.info("Message limit reached. Stopping.")
+                    break
 
-            if info.rc == mqtt_client.MQTT_ERR_SUCCESS:
-                logger.info(f"Sent Telemetry: {payload_str}")
-            else:
-                logger.error(f"Failed to publish message. Return code: {info.rc}")
+                self.get_next_position(self.pub_settings.translation_increment)
 
-            msg_count += 1
+                payload = {
+                    "thingId": self.pub_settings.thing_id,
+                    "position": [self.current_x, self.current_y, self.fixed_z],
+                    "orientation": [0.0, 0.0, 0.0],
+                }
 
-            time.sleep(pub_settings.publish_interval_seconds)
+                payload_str = json.dumps(payload)
+                info = self.client.publish(self.topic, payload_str)
 
-    except KeyboardInterrupt:
-        logger.info("Simulation stopped by user.")
-    finally:
-        client.loop_stop()
-        client.disconnect()
-        logger.info("Device disconnected.")
+                if info.rc == mqtt_client.MQTT_ERR_SUCCESS:
+                    logger.info(f"Sent Telemetry: {payload_str}")
+                else:
+                    logger.error(f"Failed to publish message. Return code: {info.rc}")
+
+                msg_count += 1
+
+                time.sleep(self.pub_settings.publish_interval_seconds)
+
+        except KeyboardInterrupt:
+            logger.info("Simulation stopped by user.")
+        except Exception as e:
+            logger.critical(f"Simulation failed: {e}")
+        finally:
+            self.client.stop()
+            logger.info("Device disconnected.")
 
 
 if __name__ == "__main__":
-    run()
+    simulator = DeviceSimulator(cfg)
+    simulator.run()
