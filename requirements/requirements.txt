@@ -1,5 +1,0 @@
-numpy
-ipykernel
-paho-mqtt
-tensorflow
-sionna
