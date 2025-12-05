@@ -58,6 +58,13 @@ class RenderingSettings(BaseModel):
     show_devices: bool
 
 
+class Geo2SigmapSettings(BaseModel):
+    min_lon: float
+    min_lat: float
+    max_lon: float
+    max_lat: float
+
+
 class SionnartSettings(BaseModel):
     scene_name: str
     transmitter: TransmitterSettings
@@ -74,6 +81,7 @@ class Settings(BaseModel):
     logging: LoggingSettings
     mqtt: MQTTSettings
     sionnart: SionnartSettings
+    geo2sigmap: Geo2SigmapSettings
 
 
 # --- Load logic ---

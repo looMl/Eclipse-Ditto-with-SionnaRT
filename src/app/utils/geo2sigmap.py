@@ -2,6 +2,7 @@ import os
 import logging
 from scene_generation.core import Scene
 from scene_generation.itu_materials import ITU_MATERIALS
+from config import settings, get_project_root
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -103,12 +104,14 @@ def generate_scene_from_coords(
 
 if __name__ == "__main__":
     try:
+        output_dir = get_project_root() / "scene"
+
         generate_scene_from_coords(
-            min_lon=11.109066,
-            min_lat=46.055603,
-            max_lon=11.135674,
-            max_lat=46.080375,
-            output_dir="./output_test_scene",
+            min_lon=settings.geo2sigmap.min_lon,
+            min_lat=settings.geo2sigmap.min_lat,
+            max_lon=settings.geo2sigmap.max_lon,
+            max_lat=settings.geo2sigmap.max_lat,
+            output_dir=str(output_dir),
         )
     except Exception as e:
         print(e)
