@@ -59,7 +59,7 @@ class RenderingSettings(BaseModel):
 
 
 class SionnartSettings(BaseModel):
-    script_name: str
+    scene_name: str
     transmitter: TransmitterSettings
     camera: CameraSettings
     simulation: SimulationSettings = Field(..., alias="paths_simulation")

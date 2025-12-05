@@ -21,7 +21,7 @@ mqtt:
     base_topic: "devices/out"
 
 sionnart:
-  scene_name: "povo_scene.xml"
+  scene_name: "scene.xml"
 
   transmitter:
     position: [-39, -15, 4]
