@@ -1,15 +1,28 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 
 from scene_generation.core import Scene
 from scene_generation.itu_materials import ITU_MATERIALS
 
 from app.utils.config import settings, get_project_root
+from app.utils.telecom_manager import TelecomManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Cache material list for index-based access
+_MATERIALS_LIST = list(ITU_MATERIALS.items())
+
+
+def resolve_material(idx: int) -> str:
+    """Resolves material index to name safely."""
+    try:
+        return _MATERIALS_LIST[idx][0]
+    except IndexError:
+        logger.warning(f"Invalid material index {idx}. Using default.")
+        return _MATERIALS_LIST[0][0]
 
 
 @dataclass(frozen=True)
@@ -31,6 +44,15 @@ class BoundingBox:
             raise ValueError(
                 f"min_lat ({self.min_lat}) must be less than max_lat ({self.max_lat})"
             )
+
+    def to_dict(self) -> Dict[str, float]:
+        """Returns the bbox as a dictionary for compatibility."""
+        return {
+            "min_lon": self.min_lon,
+            "min_lat": self.min_lat,
+            "max_lon": self.max_lon,
+            "max_lat": self.max_lat,
+        }
 
     @property
     def polygon_points(self) -> List[List[float]]:
@@ -56,20 +78,6 @@ class MaterialConfig:
     wall_idx: int = 1  # Default: concrete
 
 
-class MaterialResolver:
-    """Resolves material indices to material types."""
-
-    def __init__(self, materials_map: Dict):
-        self._materials_list = list(materials_map.items())
-
-    def resolve(self, idx: int, material_name: str) -> str:
-        if 0 <= idx < len(self._materials_list):
-            return self._materials_list[idx][0]
-
-        logger.warning(f"Invalid {material_name} material index {idx}. Using default.")
-        return self._materials_list[0][0]
-
-
 class SceneBuilder:
     """Service responsible for generating the 3D scene."""
 
@@ -85,6 +93,29 @@ class SceneBuilder:
                     f"Could not create output directory '{self._output_dir}': {e}"
                 )
 
+    def _process_telecom_infrastructure(
+        self, bbox: BoundingBox
+    ) -> Tuple[Optional[TelecomManager], Optional[str]]:
+        """
+        Fetches and processes telecom data, exporting the mesh.
+        Returns the manager instance and the relative mesh path.
+        """
+        logger.info("Starting Telecom Infrastructure Generation...")
+        telecom_mgr = TelecomManager(bbox=bbox.to_dict())
+        telecom_mgr.fetch_and_process()
+
+        mesh = telecom_mgr.get_mesh()
+        if mesh:
+            mesh_dir = self._output_dir / "mesh"
+            mesh_dir.mkdir(parents=True, exist_ok=True)
+
+            ply_path = mesh_dir / "transmitters.ply"
+            mesh.export(str(ply_path))
+            logger.info(f"Exported mesh to {ply_path}")
+            return telecom_mgr, "mesh/transmitters.ply"
+
+        return None, None
+
     def generate(self, bbox: BoundingBox, materials: MaterialConfig) -> None:
         """Orchestrates the scene generation process."""
         self._ensure_output_directory()
@@ -96,10 +127,10 @@ class SceneBuilder:
         )
         logger.info(f"Output Directory: {self._output_dir}")
 
-        resolver = MaterialResolver(ITU_MATERIALS)
-        ground_mat = resolver.resolve(materials.ground_idx, "ground")
-        rooftop_mat = resolver.resolve(materials.rooftop_idx, "rooftop")
-        wall_mat = resolver.resolve(materials.wall_idx, "wall")
+        # Resolve materials
+        ground_mat = resolve_material(materials.ground_idx)
+        rooftop_mat = resolve_material(materials.rooftop_idx)
+        wall_mat = resolve_material(materials.wall_idx)
 
         try:
             scene_instance = Scene()
@@ -121,6 +152,13 @@ class SceneBuilder:
             )
 
             logger.info("Scene generation completed successfully.")
+
+            telecom_mgr, mesh_rel_path = self._process_telecom_infrastructure(bbox)
+            if telecom_mgr and mesh_rel_path:
+                scene_file = self._output_dir / "scene.xml"
+                telecom_mgr.update_scene_xml(scene_file, mesh_rel_path)
+
+            logger.info("Telecom Infrastructure Generation completed.")
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
