@@ -1,8 +1,8 @@
 import logging
+import trimesh
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-
 from scene_generation.core import Scene
 from scene_generation.itu_materials import ITU_MATERIALS
 
@@ -116,6 +116,37 @@ class SceneBuilder:
 
         return None, None
 
+    def _merge_building_meshes(self) -> None:
+        """
+        Optimizes building meshes by merging them into single files for walls and rooftops.
+        """
+        mesh_dir = self._output_dir / "mesh"
+
+        logger.info("Optimizing building meshes...")
+
+        wall_meshes = []
+        rooftop_meshes = []
+
+        for file_path in mesh_dir.glob("building_*"):
+            if file_path.name.endswith("_wall.ply"):
+                wall_meshes.append(trimesh.load(file_path))
+            elif file_path.name.endswith("_rooftop.ply"):
+                rooftop_meshes.append(trimesh.load(file_path))
+
+        # Merge and export walls
+        if wall_meshes:
+            logger.info(f"Merging {len(wall_meshes)} wall meshes...")
+            combined_walls = trimesh.util.concatenate(wall_meshes)
+            combined_walls.export(str(mesh_dir / "buildings_walls.ply"))
+            logger.info("Exported buildings_walls.ply")
+
+        # Merge and export rooftops
+        if rooftop_meshes:
+            logger.info(f"Merging {len(rooftop_meshes)} rooftop meshes...")
+            combined_rooftops = trimesh.util.concatenate(rooftop_meshes)
+            combined_rooftops.export(str(mesh_dir / "buildings_rooftops.ply"))
+            logger.info("Exported buildings_rooftops.ply")
+
     def generate(self, bbox: BoundingBox, materials: MaterialConfig) -> None:
         """Orchestrates the scene generation process."""
         self._ensure_output_directory()
@@ -152,6 +183,8 @@ class SceneBuilder:
             )
 
             logger.info("Scene generation completed successfully.")
+
+            self._merge_building_meshes()
 
             telecom_mgr, mesh_rel_path = self._process_telecom_infrastructure(bbox)
             if telecom_mgr and mesh_rel_path:
