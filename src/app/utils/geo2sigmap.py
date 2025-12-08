@@ -3,6 +3,7 @@ import trimesh
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
+import xml.etree.ElementTree as ET
 from scene_generation.core import Scene
 from scene_generation.itu_materials import ITU_MATERIALS
 
@@ -124,28 +125,126 @@ class SceneBuilder:
 
         logger.info("Optimizing building meshes...")
 
-        wall_meshes = []
-        rooftop_meshes = []
+        wall_files = list(mesh_dir.glob("building_*_wall.ply"))
+        rooftop_files = list(mesh_dir.glob("building_*_rooftop.ply"))
 
-        for file_path in mesh_dir.glob("building_*"):
-            if file_path.name.endswith("_wall.ply"):
-                wall_meshes.append(trimesh.load(file_path))
-            elif file_path.name.endswith("_rooftop.ply"):
-                rooftop_meshes.append(trimesh.load(file_path))
+        if not wall_files and not rooftop_files:
+            return
 
-        # Merge and export walls
-        if wall_meshes:
-            logger.info(f"Merging {len(wall_meshes)} wall meshes...")
-            combined_walls = trimesh.util.concatenate(wall_meshes)
-            combined_walls.export(str(mesh_dir / "buildings_walls.ply"))
-            logger.info("Exported buildings_walls.ply")
+        self._merge_and_save_meshes(wall_files, "buildings_walls.ply")
+        self._merge_and_save_meshes(rooftop_files, "buildings_rooftops.ply")
 
-        # Merge and export rooftops
-        if rooftop_meshes:
-            logger.info(f"Merging {len(rooftop_meshes)} rooftop meshes...")
-            combined_rooftops = trimesh.util.concatenate(rooftop_meshes)
-            combined_rooftops.export(str(mesh_dir / "buildings_rooftops.ply"))
-            logger.info("Exported buildings_rooftops.ply")
+        self._update_scene_xml(wall_files, rooftop_files)
+        self._cleanup_files(wall_files + rooftop_files)
+
+    def _merge_and_save_meshes(self, files: List[Path], output_filename: str) -> None:
+        if not files:
+            return
+
+        logger.info(f"Merging {len(files)} meshes into {output_filename}...")
+        try:
+            meshes = [trimesh.load(f) for f in files]
+            combined = trimesh.util.concatenate(meshes)
+
+            output_path = self._output_dir / "mesh" / output_filename
+            combined.export(str(output_path))
+            logger.info(f"Exported {output_filename}")
+        except Exception as e:
+            logger.error(f"Failed to merge meshes into {output_filename}: {e}")
+
+    def _cleanup_files(self, files: List[Path]) -> None:
+        for f in files:
+            try:
+                f.unlink()
+            except OSError as e:
+                logger.warning(f"Failed to delete {f}: {e}")
+        logger.info("Deleted individual mesh files.")
+
+    def _update_scene_xml(
+        self, wall_files: List[Path], rooftop_files: List[Path]
+    ) -> None:
+        """Updates scene.xml to point to merged meshes and remove old ones."""
+        scene_path = self._output_dir / "scene.xml"
+
+        try:
+            tree = ET.parse(scene_path)
+            root = tree.getroot()
+
+            # Prepare sets for fast lookup (relative paths)
+            wall_filenames = {f"mesh/{f.name}" for f in wall_files}
+            rooftop_filenames = {f"mesh/{f.name}" for f in rooftop_files}
+
+            shapes_to_remove = []
+            wall_bsdf_id = None
+            rooftop_bsdf_id = None
+
+            # Identify shapes to remove and extract BSDF IDs
+            for shape in root.findall("shape"):
+                filename_node = shape.find("string[@name='filename']")
+                if filename_node is None:
+                    continue
+
+                fname = filename_node.get("value")
+                if fname in wall_filenames:
+                    shapes_to_remove.append(shape)
+                    if not wall_bsdf_id:
+                        wall_bsdf_id = self._get_bsdf_id(shape)
+                elif fname in rooftop_filenames:
+                    shapes_to_remove.append(shape)
+                    if not rooftop_bsdf_id:
+                        rooftop_bsdf_id = self._get_bsdf_id(shape)
+
+            # Remove old shapes
+            for shape in shapes_to_remove:
+                root.remove(shape)
+
+            logger.info(
+                f"Removed {len(shapes_to_remove)} individual building shapes from scene.xml"
+            )
+
+            # Add new merged shapes
+            if wall_files and wall_bsdf_id:
+                self._add_shape_to_xml(
+                    root,
+                    "mesh/buildings_walls.ply",
+                    "mesh-buildings-walls",
+                    wall_bsdf_id,
+                )
+
+            if rooftop_files and rooftop_bsdf_id:
+                self._add_shape_to_xml(
+                    root,
+                    "mesh/buildings_rooftops.ply",
+                    "mesh-buildings-rooftops",
+                    rooftop_bsdf_id,
+                )
+
+            tree.write(scene_path, encoding="utf-8", xml_declaration=True)
+            logger.info("Updated scene.xml with merged meshes.")
+
+        except ET.ParseError as e:
+            logger.error(f"Failed to parse scene.xml: {e}")
+        except Exception as e:
+            logger.error(f"Error updating scene.xml: {e}")
+
+    def _get_bsdf_id(self, shape: ET.Element) -> Optional[str]:
+        ref = shape.find("ref[@name='bsdf']")
+        return ref.get("id") if ref is not None else None
+
+    def _add_shape_to_xml(
+        self, root: ET.Element, filename: str, shape_id: str, bsdf_id: str
+    ) -> None:
+        new_shape = ET.SubElement(root, "shape")
+        new_shape.set("type", "ply")
+        new_shape.set("id", shape_id)
+
+        fn = ET.SubElement(new_shape, "string")
+        fn.set("name", "filename")
+        fn.set("value", filename)
+
+        ref = ET.SubElement(new_shape, "ref")
+        ref.set("name", "bsdf")
+        ref.set("id", bsdf_id)
 
     def generate(self, bbox: BoundingBox, materials: MaterialConfig) -> None:
         """Orchestrates the scene generation process."""
