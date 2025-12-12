@@ -1,7 +1,5 @@
 import logging
 from typing import Dict, List, Tuple, Optional
-from pathlib import Path
-import xml.etree.ElementTree as ET
 
 import osmnx as ox
 import trimesh
@@ -92,33 +90,3 @@ class TelecomManager:
             meshes.append(c)
 
         return trimesh.util.concatenate(meshes)
-
-    def update_scene_xml(self, scene_path: Path, mesh_rel_path: str) -> None:
-        """Injects the transmitters mesh into the scene XML."""
-        logger.info(f"Injecting transmitters from {mesh_rel_path} into {scene_path}...")
-        try:
-            tree = ET.parse(scene_path)
-            root = tree.getroot()
-
-            # Check if already exists to avoid duplicates
-            existing = root.find(".//shape[@id='mesh-transmitters']")
-            if existing is None:
-                shape = ET.SubElement(root, "shape")
-                shape.set("type", "ply")
-                shape.set("id", "mesh-transmitters")
-
-                filename = ET.SubElement(shape, "string")
-                filename.set("name", "filename")
-                filename.set("value", mesh_rel_path)
-
-                ref = ET.SubElement(shape, "ref")
-                ref.set("name", "bsdf")
-                ref.set("id", "mat-itu_metal")
-
-                tree.write(scene_path, encoding="utf-8", xml_declaration=True)
-                logger.info("Successfully added transmitters to scene.xml")
-            else:
-                logger.info("Transmitters shape already present in scene.xml")
-
-        except Exception as e:
-            logger.error(f"Failed to patch scene.xml: {e}")
