@@ -7,6 +7,7 @@ from app.geomap_processor.utils import BoundingBox, MaterialConfig, resolve_mate
 from app.geomap_processor.telecom_manager import TelecomManager
 from app.geomap_processor.building_mesher import BuildingMesher
 from app.geomap_processor.scene_updater import SceneXMLUpdater
+from app.geomap_processor.dem_processor import DemProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ class SceneBuilder:
 
             self._optimize_buildings()
             self._process_telecom_infrastructure(bbox)
+            self._process_terrain(bbox)
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
@@ -144,6 +146,49 @@ class SceneBuilder:
             logger.info("Telecom Infrastructure added to scene.")
         else:
             logger.info("No telecom infrastructure found or mesh generation failed.")
+
+    def _process_terrain(self, bbox: BoundingBox) -> None:
+        """Generates terrain mesh from DEM and updates the scene."""
+        logger.info("Processing terrain from DEM...")
+
+        dem_path = get_project_root() / "geotiffs" / "trento.tif"
+        if not dem_path.exists():
+            logger.warning(
+                f"DEM file not found at {dem_path}. Skipping terrain generation."
+            )
+            return
+
+        bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
+        center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
+        center_lat = (bbox.min_lat + bbox.max_lat) / 2.0
+
+        try:
+            elevation, transform = DemProcessor.process_dem(dem_path, bbox_tuple)
+
+            mesh_dir = self._output_dir / "mesh"
+            mesh_dir.mkdir(parents=True, exist_ok=True)
+            terrain_path = mesh_dir / "terrain.ply"
+
+            DemProcessor.generate_terrain_mesh(
+                elevation, transform, terrain_path, mesh_origin=(center_lon, center_lat)
+            )
+
+            scene_path = self._output_dir / "scene.xml"
+            updater = SceneXMLUpdater(scene_path)
+
+            # Remove old ground and get its material
+            ground_files = {"mesh/ground.ply"}
+            ground_bsdf = updater.remove_shapes_by_filenames(ground_files)
+
+            if ground_bsdf:
+                updater.add_mesh_shape("mesh/terrain.ply", "mesh-terrain", ground_bsdf)
+                updater.save()
+                logger.info("Replaced ground.ply with terrain.ply in scene.xml")
+            else:
+                logger.warning("Could not find existing ground shape to replace.")
+
+        except Exception as e:
+            logger.error(f"Failed to process terrain: {e}")
 
 
 def main():
