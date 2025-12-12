@@ -1,7 +1,7 @@
 import logging
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
-from rasterio.transform import from_bounds
+from rasterio.transform import from_bounds, rowcol
 import numpy as np
 import trimesh
 from pathlib import Path
@@ -89,7 +89,15 @@ class DemProcessor:
             # Convert to map coordinates (EPSG:4326)
             xs, ys = rasterio.transform.xy(transform, rows, cols, offset="center")
             xs, ys = np.array(xs).flatten(), np.array(ys).flatten()
-            zs = elevation_data.flatten()
+            # Normalize elevation relative to mesh origin
+            if mesh_origin:
+                r, c = rowcol(transform, *mesh_origin)
+                r, c = max(0, min(r, height - 1)), max(0, min(c, width - 1))
+                ref_elev = elevation_data[r, c]
+            else:
+                ref_elev = np.min(elevation_data)
+
+            zs = elevation_data.flatten() - ref_elev
 
             # Project to local coordinates if origin is provided
             if mesh_origin:
