@@ -203,7 +203,7 @@ class SceneBuilder:
             scene_path = self._output_dir / "scene.xml"
             updater = SceneXMLUpdater(scene_path)
 
-            # Remove old ground and get its material
+            # Remove old ground from scene.xml and get its material
             ground_files = {"mesh/ground.ply"}
             ground_bsdf = updater.remove_shapes_by_filenames(ground_files)
 
@@ -211,6 +211,9 @@ class SceneBuilder:
                 updater.add_mesh_shape("mesh/terrain.ply", "mesh-terrain", ground_bsdf)
                 updater.save()
                 logger.info("Replaced ground.ply with terrain.ply in scene.xml")
+                # Remove the old ground mesh file
+                ground_ply_path = self._output_dir / "mesh" / "ground.ply"
+                ground_ply_path.unlink()
             else:
                 logger.warning("Could not find existing ground shape to replace.")
 
