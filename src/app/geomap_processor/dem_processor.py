@@ -76,9 +76,10 @@ class DemProcessor:
         transform: rasterio.Affine,
         output_path: Union[str, Path],
         mesh_origin: Optional[Tuple[float, float]] = None,
-    ) -> None:
+    ) -> float:
         """
         Generates a 3D mesh from elevation data and saves it as a PLY file.
+        Returns the reference elevation used for normalization.
         """
         try:
             height, width = elevation_data.shape
@@ -89,6 +90,7 @@ class DemProcessor:
             # Convert to map coordinates (EPSG:4326)
             xs, ys = rasterio.transform.xy(transform, rows, cols, offset="center")
             xs, ys = np.array(xs).flatten(), np.array(ys).flatten()
+
             # Normalize elevation relative to mesh origin
             if mesh_origin:
                 r, c = rowcol(transform, *mesh_origin)
@@ -142,6 +144,55 @@ class DemProcessor:
             mesh.export(str(output_path))
             logger.info(f"Terrain mesh saved to {output_path}")
 
+            return float(ref_elev)
+
         except Exception as e:
             logger.error(f"Failed to generate terrain mesh: {e}")
             raise
+
+    @staticmethod
+    def local_to_global(
+        x: float, y: float, origin_lon: float, origin_lat: float
+    ) -> Tuple[float, float]:
+        """
+        Converts local metric coordinates (x, y) back to global (lon, lat).
+        """
+        dst_crs = DemProcessor._get_utm_crs(origin_lon, origin_lat)
+        src_crs = "EPSG:4326"
+
+        # Calculate origin in UTM
+        ox_list, oy_list = rasterio.warp.transform(
+            src_crs, dst_crs, [origin_lon], [origin_lat]
+        )
+        ox, oy = ox_list[0], oy_list[0]
+
+        # Add origin offset to get absolute UTM
+        px = x + ox
+        py = y + oy
+
+        # Reproject to Lon/Lat
+        lon_list, lat_list = rasterio.warp.transform(dst_crs, src_crs, [px], [py])
+        return lon_list[0], lat_list[0]
+
+    @staticmethod
+    def sample_elevation(
+        elevation_data: np.ndarray,
+        transform: rasterio.Affine,
+        lon: float,
+        lat: float,
+        normalize_value: float = 0.0,
+    ) -> float:
+        """
+        Samples the elevation at a specific (lon, lat) coordinate.
+        Returns the elevation adjusted by the normalize_value.
+        """
+        try:
+            r, c = rowcol(transform, lon, lat)
+            height, width = elevation_data.shape
+
+            if 0 <= r < height and 0 <= c < width:
+                return float(elevation_data[r, c] - normalize_value)
+
+            return 0.0
+        except Exception:
+            return 0.0

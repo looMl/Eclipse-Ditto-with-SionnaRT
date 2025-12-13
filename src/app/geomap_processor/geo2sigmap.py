@@ -1,4 +1,5 @@
 import logging
+from typing import Tuple, Any
 from pathlib import Path
 from scene_generation.core import Scene
 
@@ -65,31 +66,61 @@ class SceneBuilder:
 
             logger.info("Scene generation completed successfully.")
 
-            self._optimize_buildings()
+            # Process terrain first to get elevation data
+            elev_data, transform, ref_elev = self._process_terrain(bbox)
+
+            # Calculate scene center
+            center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
+            center_lat = (bbox.min_lat + bbox.max_lat) / 2.0
+
+            self._optimize_buildings(
+                elev_data, transform, ref_elev, (center_lon, center_lat)
+            )
             self._process_telecom_infrastructure(bbox)
-            self._process_terrain(bbox)
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
             raise RuntimeError(f"Scene generation failed: {e}")
 
-    def _optimize_buildings(self) -> None:
+    def _optimize_buildings(
+        self,
+        elevation_data: Any,
+        transform: Any,
+        ref_elev: float,
+        scene_origin: Tuple[float, float],
+    ) -> None:
         """Merges the generated building meshes into one using BuildingMesher"""
         logger.info("Optimizing building meshes...")
         mesh_dir = self._output_dir / "mesh"
 
         mesher = BuildingMesher(mesh_dir)
+
+        height_callback = None
+        if elevation_data is not None and transform is not None:
+
+            def _callback(x: float, y: float) -> float:
+                origin_lon, origin_lat = scene_origin
+                lon, lat = DemProcessor.local_to_global(x, y, origin_lon, origin_lat)
+                return DemProcessor.sample_elevation(
+                    elevation_data, transform, lon, lat, ref_elev
+                )
+
+            height_callback = _callback
+
         wall_files, rooftop_files = mesher.get_building_files()
 
         if not wall_files and not rooftop_files:
             logger.info("No building meshes found to optimize.")
             return
 
-        # Merge Meshes
-        walls_merged = mesher.merge_meshes(wall_files, "buildings_walls.ply")
-        rooftops_merged = mesher.merge_meshes(rooftop_files, "buildings_rooftops.ply")
+        # Merge meshes and modulate heights
+        walls_merged = mesher.merge_meshes(
+            wall_files, "buildings_walls.ply", height_callback
+        )
+        rooftops_merged = mesher.merge_meshes(
+            rooftop_files, "buildings_rooftops.ply", height_callback
+        )
 
-        # Update Scene XML
         scene_path = self._output_dir / "scene.xml"
         updater = SceneXMLUpdater(scene_path)
 
@@ -147,7 +178,7 @@ class SceneBuilder:
         else:
             logger.info("No telecom infrastructure found or mesh generation failed.")
 
-    def _process_terrain(self, bbox: BoundingBox) -> None:
+    def _process_terrain(self, bbox: BoundingBox) -> Tuple[Any, Any, float]:
         """Generates terrain mesh from DEM and updates the scene."""
         logger.info("Processing terrain from DEM...")
 
@@ -156,7 +187,7 @@ class SceneBuilder:
             logger.warning(
                 f"DEM file not found at {dem_path}. Skipping terrain generation."
             )
-            return
+            return None, None, 0.0
 
         bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
         center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
@@ -169,7 +200,7 @@ class SceneBuilder:
             mesh_dir.mkdir(parents=True, exist_ok=True)
             terrain_path = mesh_dir / "terrain.ply"
 
-            DemProcessor.generate_terrain_mesh(
+            ref_elev = DemProcessor.generate_terrain_mesh(
                 elevation, transform, terrain_path, mesh_origin=(center_lon, center_lat)
             )
 
@@ -187,8 +218,11 @@ class SceneBuilder:
             else:
                 logger.warning("Could not find existing ground shape to replace.")
 
+            return elevation, transform, ref_elev
+
         except Exception as e:
             logger.error(f"Failed to process terrain: {e}")
+            return None, None, 0.0
 
 
 def main():
