@@ -16,6 +16,10 @@ class TelecomManager:
     Manages fetching and processing of telecom infrastructure data.
     """
 
+    DEFAULT_HEIGHT = 150.0
+    CYLINDER_RADIUS = 2
+    CYLINDER_SECTIONS = 16
+
     def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
         # (x, y, height) for each antenna
@@ -76,7 +80,7 @@ class TelecomManager:
             else:
                 x, y = geom.centroid.x, geom.centroid.y
 
-            self.locations.append((x - cx, y - cy, 150.0))
+            self.locations.append((x - cx, y - cy, self.DEFAULT_HEIGHT))
 
     def get_mesh(
         self, height_callback: Optional[Callable[[float, float], float]] = None
@@ -87,7 +91,9 @@ class TelecomManager:
 
         meshes = []
         for x, y, h in self.locations:
-            c = trimesh.creation.cylinder(radius=2, height=h, sections=16)
+            c = trimesh.creation.cylinder(
+                radius=self.CYLINDER_RADIUS, height=h, sections=self.CYLINDER_SECTIONS
+            )
 
             z_ground = 0.0
             if height_callback:

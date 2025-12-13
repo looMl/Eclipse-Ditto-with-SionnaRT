@@ -89,15 +89,10 @@ class DemProcessor:
             xs, ys = rasterio.transform.xy(transform, rows, cols, offset="center")
             xs, ys = np.array(xs).flatten(), np.array(ys).flatten()
 
-            # Normalize elevation relative to mesh origin
-            if mesh_origin:
-                r, c = rowcol(transform, *mesh_origin)
-                r, c = max(0, min(r, height - 1)), max(0, min(c, width - 1))
-                ref_elev = elevation_data[r, c]
-            else:
-                ref_elev = np.min(elevation_data)
-
-            zs = elevation_data.flatten() - ref_elev
+            # Normalize elevation
+            zs, ref_elev = DemProcessor._normalize_elevation(
+                elevation_data, transform, mesh_origin
+            )
 
             # Project to local coordinates if origin is provided
             if mesh_origin:
@@ -142,11 +137,28 @@ class DemProcessor:
             mesh.export(str(output_path))
             logger.info(f"Terrain mesh saved to {output_path}")
 
-            return float(ref_elev)
+            return ref_elev
 
         except Exception as e:
             logger.error(f"Failed to generate terrain mesh: {e}")
             raise
+
+    @staticmethod
+    def _normalize_elevation(
+        elevation_data: np.ndarray,
+        transform: rasterio.Affine,
+        mesh_origin: Optional[Tuple[float, float]],
+    ) -> Tuple[np.ndarray, float]:
+        """Calculates normalized elevation values relative to the origin or minimum."""
+        height, width = elevation_data.shape
+        if mesh_origin:
+            r, c = rowcol(transform, *mesh_origin)
+            r, c = max(0, min(r, height - 1)), max(0, min(c, width - 1))
+            ref_elev = float(elevation_data[r, c])
+        else:
+            ref_elev = float(np.min(elevation_data))
+
+        return elevation_data.flatten() - ref_elev, ref_elev
 
     @staticmethod
     def local_to_global(

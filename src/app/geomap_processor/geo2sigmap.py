@@ -40,49 +40,17 @@ class SceneBuilder:
         )
         logger.info(f"Output Directory: {self._output_dir}")
 
-        # Resolve materials
-        ground_mat = resolve_material(materials.ground_idx)
-        rooftop_mat = resolve_material(materials.rooftop_idx)
-        wall_mat = resolve_material(materials.wall_idx)
-
         try:
-            scene_instance = Scene()
-
-            # Explicitly disabling LiDAR and DEM features of the library
-            scene_instance(
-                points=bbox.polygon_points,
-                data_dir=str(self._output_dir),
-                hag_tiff_path=None,
-                osm_server_addr="https://overpass-api.de/api/interpreter",
-                lidar_calibration=False,
-                generate_building_map=False,
-                ground_material_type=ground_mat,
-                rooftop_material_type=rooftop_mat,
-                wall_material_type=wall_mat,
-                lidar_terrain=False,
-                dem_terrain=False,
-                gen_lidar_terrain_only=False,
-            )
-
+            self._generate_core_scene(bbox, materials)
             logger.info("Scene generation completed successfully.")
 
             # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
 
             # Define height callback for adjusting buildings meshes
-            height_callback = None
-            if elev_data is not None and transform is not None:
-                center_lon, center_lat = bbox.center
-
-                def _cb(x: float, y: float) -> float:
-                    lon, lat = DemProcessor.local_to_global(
-                        x, y, center_lon, center_lat
-                    )
-                    return DemProcessor.sample_elevation(
-                        elev_data, transform, lon, lat, ref_elev
-                    )
-
-                height_callback = _cb
+            height_callback = self._create_height_callback(
+                elev_data, transform, ref_elev, *bbox.center
+            )
 
             self._optimize_buildings(height_callback)
             self._process_telecom_infrastructure(bbox, height_callback)
@@ -90,6 +58,53 @@ class SceneBuilder:
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
             raise RuntimeError(f"Scene generation failed: {e}")
+
+    def _generate_core_scene(
+        self, bbox: BoundingBox, materials: MaterialConfig
+    ) -> None:
+        """Generates the base scene using the core library."""
+        # Resolve materials
+        ground_mat = resolve_material(materials.ground_idx)
+        rooftop_mat = resolve_material(materials.rooftop_idx)
+        wall_mat = resolve_material(materials.wall_idx)
+
+        scene_instance = Scene()
+
+        # Explicitly disabling LiDAR and DEM features of the library
+        scene_instance(
+            points=bbox.polygon_points,
+            data_dir=str(self._output_dir),
+            hag_tiff_path=None,
+            osm_server_addr="https://overpass-api.de/api/interpreter",
+            lidar_calibration=False,
+            generate_building_map=False,
+            ground_material_type=ground_mat,
+            rooftop_material_type=rooftop_mat,
+            wall_material_type=wall_mat,
+            lidar_terrain=False,
+            dem_terrain=False,
+            gen_lidar_terrain_only=False,
+        )
+
+    def _create_height_callback(
+        self,
+        elev_data: Any,
+        transform: Any,
+        ref_elev: float,
+        center_lon: float,
+        center_lat: float,
+    ) -> Optional[Callable[[float, float], float]]:
+        """Creates a callback function for height adjustment."""
+        if elev_data is None or transform is None:
+            return None
+
+        def _cb(x: float, y: float) -> float:
+            lon, lat = DemProcessor.local_to_global(x, y, center_lon, center_lat)
+            return DemProcessor.sample_elevation(
+                elev_data, transform, lon, lat, ref_elev
+            )
+
+        return _cb
 
     def _optimize_buildings(
         self, height_callback: Optional[Callable[[float, float], float]]
