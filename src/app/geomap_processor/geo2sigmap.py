@@ -9,7 +9,7 @@ from app.geomap_processor.telecom_manager import TelecomManager
 from app.geomap_processor.building_mesher import BuildingMesher
 from app.geomap_processor.scene_updater import SceneXMLUpdater
 from app.geomap_processor.dem_processor import DemProcessor
-from app.geomap_processor.dem_downloader import fetch_tinitaly_dem
+from app.geomap_processor.dem_downloader import DemDownloader
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -198,7 +198,9 @@ class SceneBuilder:
         bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
         center_lon, center_lat = bbox.center
 
-        dem_path = fetch_tinitaly_dem(bbox_tuple)
+        # Fetch DEM from TINITALY
+        downloader = DemDownloader(get_project_root() / "geotiffs")
+        dem_path = downloader.fetch(bbox_tuple)
 
         if not dem_path or not dem_path.exists():
             logger.warning("Could not fetch DEM file. Skipping terrain generation.")
