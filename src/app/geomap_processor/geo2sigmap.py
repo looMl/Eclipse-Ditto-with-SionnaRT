@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, Any
+from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
 from scene_generation.core import Scene
 
@@ -69,25 +69,31 @@ class SceneBuilder:
             # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
 
-            # Calculate scene center
-            center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
-            center_lat = (bbox.min_lat + bbox.max_lat) / 2.0
+            # Define height callback for adjusting buildings meshes
+            height_callback = None
+            if elev_data is not None and transform is not None:
+                center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
+                center_lat = (bbox.min_lat + bbox.max_lat) / 2.0
 
-            self._optimize_buildings(
-                elev_data, transform, ref_elev, (center_lon, center_lat)
-            )
-            self._process_telecom_infrastructure(bbox)
+                def _cb(x: float, y: float) -> float:
+                    lon, lat = DemProcessor.local_to_global(
+                        x, y, center_lon, center_lat
+                    )
+                    return DemProcessor.sample_elevation(
+                        elev_data, transform, lon, lat, ref_elev
+                    )
+
+                height_callback = _cb
+
+            self._optimize_buildings(height_callback)
+            self._process_telecom_infrastructure(bbox, height_callback)
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
             raise RuntimeError(f"Scene generation failed: {e}")
 
     def _optimize_buildings(
-        self,
-        elevation_data: Any,
-        transform: Any,
-        ref_elev: float,
-        scene_origin: Tuple[float, float],
+        self, height_callback: Optional[Callable[[float, float], float]]
     ) -> None:
         """Merges the generated building meshes into one using BuildingMesher"""
         logger.info("Optimizing building meshes...")
@@ -95,25 +101,13 @@ class SceneBuilder:
 
         mesher = BuildingMesher(mesh_dir)
 
-        height_callback = None
-        if elevation_data is not None and transform is not None:
-
-            def _callback(x: float, y: float) -> float:
-                origin_lon, origin_lat = scene_origin
-                lon, lat = DemProcessor.local_to_global(x, y, origin_lon, origin_lat)
-                return DemProcessor.sample_elevation(
-                    elevation_data, transform, lon, lat, ref_elev
-                )
-
-            height_callback = _callback
-
         wall_files, rooftop_files = mesher.get_building_files()
 
         if not wall_files and not rooftop_files:
             logger.info("No building meshes found to optimize.")
             return
 
-        # Merge meshes and modulate heights
+        # Merge meshes with optional height adjustment
         walls_merged = mesher.merge_meshes(
             wall_files, "buildings_walls.ply", height_callback
         )
@@ -149,7 +143,11 @@ class SceneBuilder:
         # Cleanup the old individual mesh files
         mesher.cleanup_files(wall_files + rooftop_files)
 
-    def _process_telecom_infrastructure(self, bbox: BoundingBox) -> None:
+    def _process_telecom_infrastructure(
+        self,
+        bbox: BoundingBox,
+        height_callback: Optional[Callable[[float, float], float]],
+    ) -> None:
         """
         Fetches and processes telecom data, exporting the mesh and updating scene.xml.
         """
@@ -157,7 +155,7 @@ class SceneBuilder:
         telecom_mgr = TelecomManager(bbox=bbox.to_dict())
         telecom_mgr.fetch_and_process()
 
-        mesh = telecom_mgr.get_mesh()
+        mesh = telecom_mgr.get_mesh(height_callback)
         if mesh:
             mesh_dir = self._output_dir / "mesh"
             mesh_dir.mkdir(parents=True, exist_ok=True)
@@ -182,7 +180,7 @@ class SceneBuilder:
         """Generates terrain mesh from DEM and updates the scene."""
         logger.info("Processing terrain from DEM...")
 
-        dem_path = get_project_root() / "geotiffs" / "trento.tif"
+        dem_path = get_project_root() / "geotiffs" / "verona.tif"
         if not dem_path.exists():
             logger.warning(
                 f"DEM file not found at {dem_path}. Skipping terrain generation."

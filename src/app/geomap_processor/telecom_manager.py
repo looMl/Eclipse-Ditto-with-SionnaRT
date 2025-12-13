@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Callable
 
 import osmnx as ox
 import trimesh
@@ -77,16 +77,22 @@ class TelecomManager:
 
             self.locations.append((x - cx, y - cy, 150.0))
 
-    def get_mesh(self) -> Optional[trimesh.Trimesh]:
-        """Returns a combined mesh of all items."""
+    def get_mesh(
+        self, height_callback: Optional[Callable[[float, float], float]] = None
+    ) -> Optional[trimesh.Trimesh]:
+        """Returns a combined mesh of all items, optionally adjusted to terrain height."""
         if not self.locations:
             return None
 
         meshes = []
         for x, y, h in self.locations:
             c = trimesh.creation.cylinder(radius=2, height=h, sections=16)
-            # Translate to sit on z=0 (move up by h/2) and move to local pos
-            c.apply_translation([x, y, h / 2.0])
+
+            z_ground = 0.0
+            if height_callback:
+                z_ground = height_callback(x, y)
+
+            c.apply_translation([x, y, h / 2.0 + z_ground])
             meshes.append(c)
 
         return trimesh.util.concatenate(meshes)

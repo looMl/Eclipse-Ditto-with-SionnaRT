@@ -61,9 +61,7 @@ class DemProcessor:
                     resampling=Resampling.bilinear,
                 )
 
-                logger.info(
-                    f"Processed DEM data: shape={destination.shape}, transform={dst_transform}"
-                )
+                logger.info("Successfully processed DEM data")
                 return destination, dst_transform
 
         except Exception as e:
