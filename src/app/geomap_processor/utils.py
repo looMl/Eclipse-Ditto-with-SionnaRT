@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from scene_generation.itu_materials import ITU_MATERIALS
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,11 @@ class BoundingBox:
             [self.max_lon, self.min_lat],
             [self.min_lon, self.min_lat],
         ]
+
+    @property
+    def center(self) -> Tuple[float, float]:
+        """Returns the center (lon, lat) of the bounding box."""
+        return (self.min_lon + self.max_lon) / 2.0, (self.min_lat + self.max_lat) / 2.0
 
 
 @dataclass(frozen=True)

@@ -1,10 +1,12 @@
 import logging
-from typing import Dict, List, Tuple, Optional, Callable
+from typing import List, Tuple, Optional, Callable
 
 import osmnx as ox
 import trimesh
 from shapely.geometry import Point
 import geopandas as gpd
+
+from app.geomap_processor.utils import BoundingBox
 
 logger = logging.getLogger(__name__)
 
@@ -14,22 +16,21 @@ class TelecomManager:
     Manages fetching and processing of telecom infrastructure data.
     """
 
-    def __init__(self, bbox: Dict[str, float]):
+    def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
         # (x, y, height) for each antenna
         self.locations: List[Tuple[float, float, float]] = []
 
         # Calculate center for local coordinate system
-        self.center_lat = (bbox["min_lat"] + bbox["max_lat"]) / 2.0
-        self.center_lon = (bbox["min_lon"] + bbox["max_lon"]) / 2.0
+        self.center_lon, self.center_lat = bbox.center
 
     def fetch_and_process(self) -> None:
         # bbox for osmnx: (west, south, east, north)
         bbox_tuple = (
-            self.bbox["min_lon"],
-            self.bbox["min_lat"],
-            self.bbox["max_lon"],
-            self.bbox["max_lat"],
+            self.bbox.min_lon,
+            self.bbox.min_lat,
+            self.bbox.max_lon,
+            self.bbox.max_lat,
         )
 
         # OSM tags to look for

@@ -72,8 +72,7 @@ class SceneBuilder:
             # Define height callback for adjusting buildings meshes
             height_callback = None
             if elev_data is not None and transform is not None:
-                center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
-                center_lat = (bbox.min_lat + bbox.max_lat) / 2.0
+                center_lon, center_lat = bbox.center
 
                 def _cb(x: float, y: float) -> float:
                     lon, lat = DemProcessor.local_to_global(
@@ -152,7 +151,7 @@ class SceneBuilder:
         Fetches and processes telecom data, exporting the mesh and updating scene.xml.
         """
         logger.info("Starting Telecom Infrastructure Generation...")
-        telecom_mgr = TelecomManager(bbox=bbox.to_dict())
+        telecom_mgr = TelecomManager(bbox=bbox)
         telecom_mgr.fetch_and_process()
 
         mesh = telecom_mgr.get_mesh(height_callback)
@@ -180,7 +179,7 @@ class SceneBuilder:
         """Generates terrain mesh from DEM and updates the scene."""
         logger.info("Processing terrain from DEM...")
 
-        dem_path = get_project_root() / "geotiffs" / "verona.tif"
+        dem_path = get_project_root() / "geotiffs" / "trento.tif"
         if not dem_path.exists():
             logger.warning(
                 f"DEM file not found at {dem_path}. Skipping terrain generation."
@@ -188,8 +187,7 @@ class SceneBuilder:
             return None, None, 0.0
 
         bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
-        center_lon = (bbox.min_lon + bbox.max_lon) / 2.0
-        center_lat = (bbox.min_lat + bbox.max_lat) / 2.0
+        center_lon, center_lat = bbox.center
 
         try:
             elevation, transform = DemProcessor.process_dem(dem_path, bbox_tuple)
