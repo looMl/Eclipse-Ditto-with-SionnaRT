@@ -9,6 +9,7 @@ from app.geomap_processor.telecom_manager import TelecomManager
 from app.geomap_processor.building_mesher import BuildingMesher
 from app.geomap_processor.scene_updater import SceneXMLUpdater
 from app.geomap_processor.dem_processor import DemProcessor
+from app.geomap_processor.dem_downloader import fetch_tinitaly_dem
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -194,15 +195,14 @@ class SceneBuilder:
         """Generates terrain mesh from DEM and updates the scene."""
         logger.info("Processing terrain from DEM...")
 
-        dem_path = get_project_root() / "geotiffs" / "trento.tif"
-        if not dem_path.exists():
-            logger.warning(
-                f"DEM file not found at {dem_path}. Skipping terrain generation."
-            )
-            return None, None, 0.0
-
         bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
         center_lon, center_lat = bbox.center
+
+        dem_path = fetch_tinitaly_dem(bbox_tuple)
+
+        if not dem_path or not dem_path.exists():
+            logger.warning("Could not fetch DEM file. Skipping terrain generation.")
+            return None, None, 0.0
 
         try:
             elevation, transform = DemProcessor.process_dem(dem_path, bbox_tuple)
