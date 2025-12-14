@@ -21,7 +21,7 @@ mqtt:
     base_topic: "devices/out"
 
 sionnart:
-  scene_name: "povo_scene.xml"
+  scene_name: "scene.xml"
 
   transmitter:
     position: [-39, -15, 4]
@@ -39,3 +39,9 @@ sionnart:
     resolution: [480, 320]
     num_samples: 512  # Rendering parameters - adjust for quality vs. speed trade-off.
     show_devices: True
+
+geo2sigmap:
+  min_lon: 11.109066
+  min_lat: 46.055603
+  max_lon: 11.135674
+  max_lat: 46.080375

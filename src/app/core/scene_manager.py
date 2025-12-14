@@ -1,9 +1,17 @@
 from loguru import logger
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
-from app.utils.config import get_project_root, Settings
+from app.config import get_project_root, Settings
 
 
 class SceneManager:
+    # Antenna Configuration
+    TX_ROWS = 4
+    TX_COLS = 4
+    RX_ROWS = 1
+    RX_COLS = 1
+    SPACING = 0.5
+    FREQUENCY = 2.14e9
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self.scene = self._load_scene()
@@ -41,19 +49,19 @@ class SceneManager:
         logger.info("Configuring TX/RX antenna arrays.")
 
         self.scene.tx_array = PlanarArray(
-            num_rows=4,
-            num_cols=4,
-            vertical_spacing=0.5,
-            horizontal_spacing=0.5,
+            num_rows=self.TX_ROWS,
+            num_cols=self.TX_COLS,
+            vertical_spacing=self.SPACING,
+            horizontal_spacing=self.SPACING,
             pattern="tr38901",
             polarization="V",
         )
 
         self.scene.rx_array = PlanarArray(
-            num_rows=1,
-            num_cols=1,
-            vertical_spacing=0.5,
-            horizontal_spacing=0.5,
+            num_rows=self.RX_ROWS,
+            num_cols=self.RX_COLS,
+            vertical_spacing=self.SPACING,
+            horizontal_spacing=self.SPACING,
             pattern="dipole",
             polarization="cross",
         )
@@ -66,7 +74,7 @@ class SceneManager:
         self.scene.add(self.tx)
 
         # Set frequency and synthetic array mode
-        self.scene.frequency = 2.14e9
+        self.scene.frequency = self.FREQUENCY
         self.scene.synthetic_array = True
 
         freq_ghz = (self.scene.frequency / 1e9).numpy().item()

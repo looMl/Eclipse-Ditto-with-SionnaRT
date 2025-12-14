@@ -65,3 +65,4 @@ venv.bak/
 # Logs and data
 *.log
 *.db
+*.tif

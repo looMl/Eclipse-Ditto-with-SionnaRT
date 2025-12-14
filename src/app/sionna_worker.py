@@ -5,8 +5,8 @@ import multiprocessing
 import queue
 from loguru import logger
 
-from app.utils.config import settings as cfg
-from app.SionnaRTSimulator import SionnaRTSimulator
+from app.config import settings as cfg
+from app.sionna_simulator import SionnaRTSimulator
 from app.core.mqtt import MQTTClientWrapper
 
 logger.remove()
