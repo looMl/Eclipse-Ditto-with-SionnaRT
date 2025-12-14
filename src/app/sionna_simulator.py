@@ -32,53 +32,52 @@ class SionnaRTSimulator:
         self.engine.run_simulation(rx_position, rx_orientation)
 
 
-if __name__ == "__main__":
-
-    def _validate_coordinate(coord_list: list, name: str) -> None:
-        """
-        Validates that the input is a list of 3 numbers.
-        """
-        if (
-            not isinstance(coord_list, list)
-            or len(coord_list) != 3
-            or not all(isinstance(x, (int, float)) for x in coord_list)
-        ):
-            raise ValueError(
-                f"Argument '{name}' must be a JSON list of 3 numbers [x, y, z]."
-            )
-
-    def parse_arguments():
-        """Parses command-line arguments."""
-        parser = argparse.ArgumentParser(
-            description="Run a single SionnaRT simulation."
+def _validate_coordinate(coord_list: list, name: str) -> None:
+    """
+    Validates that the input is a list of 3 numbers.
+    """
+    if (
+        not isinstance(coord_list, list)
+        or len(coord_list) != 3
+        or not all(isinstance(x, (int, float)) for x in coord_list)
+    ):
+        raise ValueError(
+            f"Argument '{name}' must be a JSON list of 3 numbers [x, y, z]."
         )
 
-        parser.add_argument(
-            "--position", type=str, required=True, help="JSON list [x, y, z]"
-        )
-        parser.add_argument(
-            "--orientation", type=str, required=True, help="JSON list [x, y, z]"
-        )
 
-        args = parser.parse_args()
-        logger.info("Parsing arguments...")
+def _parse_arguments():
+    """Parses command-line arguments."""
+    parser = argparse.ArgumentParser(description="Run a single SionnaRT simulation.")
 
-        try:
-            rx_pos = json.loads(args.position)
-            _validate_coordinate(rx_pos, "position")
+    parser.add_argument(
+        "--position", type=str, required=True, help="JSON list [x, y, z]"
+    )
+    parser.add_argument(
+        "--orientation", type=str, required=True, help="JSON list [x, y, z]"
+    )
 
-            rx_ori = json.loads(args.orientation)
-            _validate_coordinate(rx_ori, "orientation")
+    args = parser.parse_args()
+    logger.info("Parsing arguments...")
 
-            logger.info(f"Parsed arguments - Position: {rx_pos}, Orientation: {rx_ori}")
-            return rx_pos, rx_ori
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Invalid arguments provided: {e}", exc_info=True)
-            raise
+    try:
+        rx_pos = json.loads(args.position)
+        _validate_coordinate(rx_pos, "position")
 
+        rx_ori = json.loads(args.orientation)
+        _validate_coordinate(rx_ori, "orientation")
+
+        logger.info(f"Parsed arguments - Position: {rx_pos}, Orientation: {rx_ori}")
+        return rx_pos, rx_ori
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Invalid arguments provided: {e}", exc_info=True)
+        raise
+
+
+def run_cli():
     logger.info("--- Running SionnaRT Simulation ---")
     try:
-        rx_pos, rx_ori = parse_arguments()
+        rx_pos, rx_ori = _parse_arguments()
         simulator = SionnaRTSimulator()
         simulator.run_simulation(rx_pos, rx_ori)
         logger.info("--- Standalone simulation finished successfully. ---")
@@ -87,3 +86,7 @@ if __name__ == "__main__":
             f"A critical error occurred during standalone execution: {e}", exc_info=True
         )
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    run_cli()

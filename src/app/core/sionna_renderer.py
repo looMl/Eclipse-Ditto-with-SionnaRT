@@ -27,9 +27,8 @@ class SimulationRenderer:
         )
         logger.info("Rendering complete.")
 
-    def _get_next_filename(
-        self, directory: Path, base_name: str, extension: str
-    ) -> Path:
+    @staticmethod
+    def _get_next_filename(directory: Path, base_name: str, extension: str) -> Path:
         i = 1
         while True:
             filename = f"{base_name}_{i}.{extension}"
