@@ -1,6 +1,6 @@
 from pathlib import Path
 from loguru import logger
-from app.utils.config import get_project_root, Settings
+from app.config import get_project_root, Settings
 
 
 class SimulationRenderer:

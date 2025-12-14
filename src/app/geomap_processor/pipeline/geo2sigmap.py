@@ -3,13 +3,14 @@ from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
 from scene_generation.core import Scene
 
-from app.utils.config import settings, get_project_root
+from app.config import settings, get_project_root
 from app.geomap_processor.utils import BoundingBox, MaterialConfig, resolve_material
-from app.geomap_processor.telecom_manager import TelecomManager
-from app.geomap_processor.building_mesher import BuildingMesher
-from app.geomap_processor.scene_updater import SceneXMLUpdater
-from app.geomap_processor.dem_processor import DemProcessor
-from app.geomap_processor.dem_downloader import DemDownloader
+from app.geomap_processor.managers.telecom_manager import TelecomManager
+from app.geomap_processor.managers.building_manager import BuildingMesher
+from app.geomap_processor.data.scene_updater import SceneXMLUpdater
+from app.geomap_processor.data.dem_downloader import DemDownloader
+from app.geomap_processor.processors.dem_processor import DemProcessor
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

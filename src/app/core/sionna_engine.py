@@ -1,8 +1,8 @@
 from sionna.rt import PathSolver
 from loguru import logger
 from app.core.scene_manager import SceneManager
-from app.core.renderer import SimulationRenderer
-from app.utils.config import Settings
+from app.core.sionna_renderer import SimulationRenderer
+from app.config import Settings
 
 
 class SionnaRTEngine:

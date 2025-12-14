@@ -1,6 +1,6 @@
 from loguru import logger
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
-from app.utils.config import get_project_root, Settings
+from app.config import get_project_root, Settings
 
 
 class SceneManager:
