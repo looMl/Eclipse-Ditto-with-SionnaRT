@@ -14,6 +14,7 @@ from app.geomap_processor.utils.geometry_utils import (
     MaterialConfig,
     resolve_material,
 )
+from app.core.ditto_manager import DittoManager
 
 
 logging.basicConfig(level=logging.INFO)
@@ -178,6 +179,9 @@ class SceneBuilder:
         # Export transmitters to JSON for Eclipse Ditto
         json_path = get_project_root() / "things" / "transmitters.json"
         telecom_mgr.save_transmitters_json(json_path)
+
+        # Provision things in Eclipse Ditto
+        DittoManager().provision_simulation(json_path)
 
         mesh = telecom_mgr.get_mesh(height_callback)
         if mesh:
