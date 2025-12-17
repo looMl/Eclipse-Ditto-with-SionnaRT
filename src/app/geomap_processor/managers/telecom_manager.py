@@ -1,9 +1,9 @@
-import logging
 import json
 import random
 from typing import List, Tuple, Optional, Callable, Any
 from dataclasses import dataclass
 from pathlib import Path
+from loguru import logger
 
 import osmnx as ox
 import trimesh
@@ -11,8 +11,6 @@ from shapely.geometry import Point
 import geopandas as gpd
 
 from app.geomap_processor.utils.geometry_utils import BoundingBox
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass

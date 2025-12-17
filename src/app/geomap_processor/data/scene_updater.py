@@ -1,9 +1,7 @@
-import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Set, Optional
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class SceneXMLUpdater:

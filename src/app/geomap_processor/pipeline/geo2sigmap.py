@@ -1,6 +1,7 @@
-import logging
+import sys
 from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
+from loguru import logger
 from scene_generation.core import Scene
 
 from app.config import settings, get_project_root
@@ -17,8 +18,8 @@ from app.geomap_processor.utils.geometry_utils import (
 from app.core.ditto_manager import DittoManager
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stdout, level=settings.logging.level)
 
 
 class SceneBuilder:

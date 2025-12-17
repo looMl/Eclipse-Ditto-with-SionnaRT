@@ -1,4 +1,3 @@
-import logging
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rasterio.transform import from_bounds, rowcol
@@ -6,8 +5,7 @@ import numpy as np
 import trimesh
 from pathlib import Path
 from typing import Tuple, Union, Optional
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class DemProcessor:

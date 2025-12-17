@@ -1,9 +1,7 @@
-import logging
+from loguru import logger
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 from scene_generation.itu_materials import ITU_MATERIALS
-
-logger = logging.getLogger(__name__)
 
 # Cache material list for index-based access
 _MATERIALS_LIST = list(ITU_MATERIALS.items())

@@ -11,18 +11,23 @@ class DittoManager:
     Manages the lifecycle of Eclipse Ditto Things for the simulation.
     """
 
+    API_URL = "http://localhost:8080/api/2"
+    DEFAULT_USERNAME = "ditto"
+    DEFAULT_PASSWORD = "ditto"
+    DEFAULT_NAMESPACE = "com.sionna"
+
     def __init__(
         self,
-        api_url: str = "http://localhost:8080/api/2",
-        username: str = "ditto",
-        password: str = "ditto",
+        api_url: str = API_URL,
+        username: str = DEFAULT_USERNAME,
+        password: str = DEFAULT_PASSWORD,
     ):
         self.base_url = api_url
         self.auth = HTTPBasicAuth(username, password)
         self.headers = {"Content-Type": "application/json"}
 
     def provision_simulation(
-        self, transmitters_json_path: Path, namespace: str = "com.sionna"
+        self, transmitters_json_path: Path, namespace: str = DEFAULT_NAMESPACE
     ):
         """
         1. Delete all existing things in the namespace.
