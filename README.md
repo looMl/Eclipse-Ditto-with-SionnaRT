@@ -48,7 +48,7 @@ Now we are ready to configure our environment.
 Found in the `policies` folder. Contents:
 ```json
 {
-  "policyId": "org.povo:policy",
+  "policyId": "com.sionna:policy",
   "entries": {
     "owner": {
       "subjects": {
@@ -80,7 +80,7 @@ Found in the `policies` folder. Contents:
 - **Create the policy**  
 Run the following command in the terminal:
 	```bash
-	curl -X PUT "http://localhost:8080/api/2/policies/org.povo:policy" -u "ditto:ditto" -H "Content-Type:application/json" -d @policy.json
+	curl -X PUT "http://localhost:8080/api/2/policies/com.sionna:policy" -u "ditto:ditto" -H "Content-Type:application/json" -d @policy.json
 	```
 
 
@@ -89,8 +89,8 @@ Run the following command in the terminal:
 	Found in the `things` folder. Contents:
 ```json
 {
-	"thingId": "org.povo:phone",
-    "policyId": "org.povo:policy",
+	"thingId": "com.sionna:phone",
+    "policyId": "com.sionna:policy",
     "attributes": {
         "name": "iPhone"
     },
@@ -107,7 +107,7 @@ Run the following command in the terminal:
 - **Create the thing**  
 Run the following command in the terminal:
 	```bash
-	curl -X PUT "http://localhost:8080/api/2/things/org.povo:phone" -u "ditto:ditto" -H "Content-Type:application/json" -d @phone.json
+	curl -X PUT "http://localhost:8080/api/2/things/com.sionna:phone" -u "ditto:ditto" -H "Content-Type:application/json" -d @phone.json
 	```
 ### 3. Create Connections
 To be able to update things in Ditto and receive notifications from it we need to configure connections. Here we will need two connections:
