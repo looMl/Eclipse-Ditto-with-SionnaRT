@@ -1,6 +1,6 @@
 {
-	"thingId": "org.povo:phone",
-    "policyId": "org.povo:policy",
+	"thingId": "com.sionna:phone",
+    "policyId": "com.sionna:policy",
     "attributes": {
         "name": "iPhone"
     },

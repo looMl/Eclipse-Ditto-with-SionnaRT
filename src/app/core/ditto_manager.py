@@ -11,14 +11,15 @@ class DittoManager:
     Manages the lifecycle of Eclipse Ditto Things for the simulation.
     """
 
-    API_URL = "http://localhost:8080/api/2"
+    DEFAULT_API_URL = "http://localhost:8080/api/2"
     DEFAULT_USERNAME = "ditto"
     DEFAULT_PASSWORD = "ditto"
     DEFAULT_NAMESPACE = "com.sionna"
+    DEFAULT_POLICY_ID = "com.sionna:policy"
 
     def __init__(
         self,
-        api_url: str = API_URL,
+        api_url: str = DEFAULT_API_URL,
         username: str = DEFAULT_USERNAME,
         password: str = DEFAULT_PASSWORD,
     ):
@@ -117,6 +118,10 @@ class DittoManager:
     def _create_single_thing(self, thing_id: str, payload: Dict[str, Any]) -> bool:
         """Creates or updates a single Thing."""
         url = f"{self.base_url}/things/{thing_id}"
+
+        if "policyId" not in payload:
+            payload["policyId"] = self.DEFAULT_POLICY_ID
+
         try:
             response = requests.put(
                 url,

@@ -1,5 +1,5 @@
 {
-  "policyId": "org.povo:policy",
+  "policyId": "com.sionna:policy",
   "entries": {
     "owner": {
       "subjects": {

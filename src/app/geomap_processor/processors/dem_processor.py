@@ -59,7 +59,7 @@ class DemProcessor:
                     resampling=Resampling.bilinear,
                 )
 
-                logger.info("Successfully processed DEM data")
+                logger.success("Successfully processed DEM data")
                 return destination, dst_transform
 
         except Exception as e:

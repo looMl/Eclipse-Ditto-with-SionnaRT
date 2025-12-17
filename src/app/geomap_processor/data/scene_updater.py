@@ -29,7 +29,7 @@ class SceneXMLUpdater:
         """Writes changes back to the file."""
         try:
             self.tree.write(self.scene_path, encoding="utf-8", xml_declaration=True)
-            logger.info(f"Saved changes to {self.scene_path}")
+            logger.success(f"Saved changes to {self.scene_path}")
         except Exception as e:
             logger.error(f"Failed to save scene.xml: {e}")
             raise

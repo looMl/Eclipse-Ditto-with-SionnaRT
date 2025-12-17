@@ -50,7 +50,7 @@ class SceneBuilder:
 
         try:
             self._generate_core_scene(bbox, materials)
-            logger.info("Scene generation completed successfully.")
+            logger.success("Scene generation completed successfully.")
 
             # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
