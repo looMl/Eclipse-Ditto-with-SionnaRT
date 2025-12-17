@@ -6,7 +6,7 @@ from loguru import logger
 from paho.mqtt import client as mqtt_client
 
 from app.config import settings as cfg
-from app.core.mqtt import MQTTClientWrapper
+from app.services.mqtt_client import MQTTClientWrapper
 
 logger.remove()
 logger.add(sys.stdout, level=cfg.logging.level)

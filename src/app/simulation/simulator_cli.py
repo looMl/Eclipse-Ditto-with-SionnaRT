@@ -6,7 +6,7 @@ import matplotlib
 from loguru import logger
 
 from app.config import settings as cfg
-from app.core.sionna_engine import SionnaRTEngine
+from app.simulation.engine import SionnaRTEngine
 
 # -1: CPU Only execution - 0: GPU only if compatible
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"

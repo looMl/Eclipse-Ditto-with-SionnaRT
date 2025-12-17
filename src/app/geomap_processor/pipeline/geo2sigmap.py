@@ -1,4 +1,3 @@
-import sys
 from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
 from loguru import logger
@@ -15,11 +14,7 @@ from app.geomap_processor.utils.geometry_utils import (
     MaterialConfig,
     resolve_material,
 )
-from app.core.ditto_manager import DittoManager
-
-
-logger.remove()
-logger.add(sys.stdout, level=settings.logging.level)
+from app.services.ditto_manager import DittoManager
 
 
 class SceneBuilder:
@@ -178,7 +173,7 @@ class SceneBuilder:
         telecom_mgr.fetch_and_process()
 
         # Export transmitters to JSON for Eclipse Ditto
-        json_path = get_project_root() / "things" / "transmitters.json"
+        json_path = get_project_root() / "ditto" / "things" / "transmitters.json"
         telecom_mgr.save_transmitters_json(json_path)
 
         # Provision things in Eclipse Ditto

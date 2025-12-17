@@ -42,6 +42,7 @@ class DittoManager:
 
         logger.info("DittoManager: Starting provisioning process...")
 
+        self.create_policy()
         self.delete_namespace_things(namespace)
 
         transmitters = self._load_transmitters(transmitters_json_path)

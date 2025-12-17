@@ -6,8 +6,8 @@ import queue
 from loguru import logger
 
 from app.config import settings as cfg
-from app.sionna_simulator import SionnaRTSimulator
-from app.core.mqtt import MQTTClientWrapper
+from app.simulation.simulator_cli import SionnaRTSimulator
+from app.services.mqtt_client import MQTTClientWrapper
 
 logger.remove()
 logger.add(sys.stdout, level=cfg.logging.level)
