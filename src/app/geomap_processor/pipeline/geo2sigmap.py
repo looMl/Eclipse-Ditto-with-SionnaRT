@@ -4,12 +4,16 @@ from pathlib import Path
 from scene_generation.core import Scene
 
 from app.config import settings, get_project_root
-from app.geomap_processor.utils import BoundingBox, MaterialConfig, resolve_material
 from app.geomap_processor.managers.telecom_manager import TelecomManager
 from app.geomap_processor.managers.building_manager import BuildingMesher
 from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 from app.geomap_processor.data.dem_downloader import DemDownloader
 from app.geomap_processor.processors.dem_processor import DemProcessor
+from app.geomap_processor.utils.geometry_utils import (
+    BoundingBox,
+    MaterialConfig,
+    resolve_material,
+)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -170,6 +174,10 @@ class SceneBuilder:
         logger.info("Starting Telecom Infrastructure Generation...")
         telecom_mgr = TelecomManager(bbox=bbox)
         telecom_mgr.fetch_and_process()
+
+        # Export transmitters to JSON for Eclipse Ditto
+        json_path = get_project_root() / "things" / "transmitters.json"
+        telecom_mgr.save_transmitters_json(json_path)
 
         mesh = telecom_mgr.get_mesh(height_callback)
         if mesh:
