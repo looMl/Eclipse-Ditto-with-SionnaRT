@@ -1,9 +1,7 @@
-import logging
 import trimesh
 from pathlib import Path
 from typing import List, Tuple, Callable, Optional
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class BuildingMesher:

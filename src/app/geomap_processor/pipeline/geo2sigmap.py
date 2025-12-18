@@ -1,19 +1,20 @@
-import logging
 from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
+from loguru import logger
 from scene_generation.core import Scene
 
 from app.config import settings, get_project_root
-from app.geomap_processor.utils import BoundingBox, MaterialConfig, resolve_material
 from app.geomap_processor.managers.telecom_manager import TelecomManager
 from app.geomap_processor.managers.building_manager import BuildingMesher
 from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 from app.geomap_processor.data.dem_downloader import DemDownloader
 from app.geomap_processor.processors.dem_processor import DemProcessor
-
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.geomap_processor.utils.geometry_utils import (
+    BoundingBox,
+    MaterialConfig,
+    resolve_material,
+)
+from app.services.ditto_manager import DittoManager
 
 
 class SceneBuilder:
@@ -44,7 +45,7 @@ class SceneBuilder:
 
         try:
             self._generate_core_scene(bbox, materials)
-            logger.info("Scene generation completed successfully.")
+            logger.success("Scene generation completed successfully.")
 
             # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
@@ -170,6 +171,13 @@ class SceneBuilder:
         logger.info("Starting Telecom Infrastructure Generation...")
         telecom_mgr = TelecomManager(bbox=bbox)
         telecom_mgr.fetch_and_process()
+
+        # Export transmitters to JSON for Eclipse Ditto
+        json_path = get_project_root() / "ditto" / "things" / "transmitters.json"
+        telecom_mgr.save_transmitters_json(json_path)
+
+        # Provision things in Eclipse Ditto
+        DittoManager().provision_simulation(json_path)
 
         mesh = telecom_mgr.get_mesh(height_callback)
         if mesh:

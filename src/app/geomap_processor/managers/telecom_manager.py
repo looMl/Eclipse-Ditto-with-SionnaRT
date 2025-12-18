@@ -1,14 +1,33 @@
-import logging
-from typing import List, Tuple, Optional, Callable
+import json
+import random
+from typing import List, Tuple, Optional, Callable, Any
+from dataclasses import dataclass
+from pathlib import Path
+from loguru import logger
 
 import osmnx as ox
 import trimesh
 from shapely.geometry import Point
 import geopandas as gpd
 
-from app.geomap_processor.utils import BoundingBox
+from app.geomap_processor.utils.geometry_utils import BoundingBox
 
-logger = logging.getLogger(__name__)
+
+@dataclass
+class Transmitter:
+    id: str
+    lat: float
+    lon: float
+    height: float
+    local_x: float
+    local_y: float
+    model: str
+    type: str
+    power_dbm: float
+    tilt: float
+    azimuth: float
+    frequency: float
+    active_users: int
 
 
 class TelecomManager:
@@ -22,8 +41,7 @@ class TelecomManager:
 
     def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
-        # (x, y, height) for each antenna
-        self.locations: List[Tuple[float, float, float]] = []
+        self.transmitters: List[Transmitter] = []
 
         # Calculate center for local coordinate system
         self.center_lon, self.center_lat = bbox.center
@@ -73,33 +91,116 @@ class TelecomManager:
 
         cx, cy = center_pt.geometry[0].x, center_pt.geometry[0].y
 
-        for _, row in gdf_proj.iterrows():
-            geom = row.geometry
-            if geom.geom_type == "Point":
-                x, y = geom.x, geom.y
-            else:
-                x, y = geom.centroid.x, geom.centroid.y
+        for idx, row in gdf_proj.iterrows():
+            # Get metric coordinates
+            x, y = self._get_geometry_center(row.geometry)
+            geom_orig = gdf.loc[idx].geometry
 
-            self.locations.append((x - cx, y - cy, self.DEFAULT_HEIGHT))
+            # Handle potential duplicate indices
+            if isinstance(geom_orig, gpd.GeoSeries):
+                geom_orig = geom_orig.iloc[0]
+            lon, lat = self._get_geometry_center(geom_orig)
+
+            # Populate Transmitter Data
+            tx = self._create_transmitter(idx, lat, lon, x - cx, y - cy)
+            self.transmitters.append(tx)
+
+    def _get_geometry_center(self, geom: Any) -> Tuple[float, float]:
+        """Extracts (x, y) from a Point or (centroid.x, centroid.y) from other geometries."""
+        if geom.geom_type == "Point":
+            return geom.x, geom.y
+        return geom.centroid.x, geom.centroid.y
+
+    def _create_transmitter(
+        self, idx: Any, lat: float, lon: float, local_x: float, local_y: float
+    ) -> Transmitter:
+        """Creates a Transmitter object with synthetic simulation data."""
+
+        # Clean up ID if it comes as a tuple (e.g. ('node', 12345))
+        if isinstance(idx, tuple) and len(idx) > 1:
+            tx_id = str(idx[1])
+        else:
+            tx_id = str(idx)
+
+        return Transmitter(
+            id=tx_id,
+            lat=lat,
+            lon=lon,
+            height=self.DEFAULT_HEIGHT,
+            local_x=local_x,
+            local_y=local_y,
+            model="Generic 5G Tower",
+            type="Macro",
+            power_dbm=random.uniform(43.0, 46.0),
+            tilt=random.uniform(2, 6),
+            azimuth=random.uniform(0, 360),
+            frequency=3.5e9,
+            active_users=random.randint(0, 100),
+        )
 
     def get_mesh(
         self, height_callback: Optional[Callable[[float, float], float]] = None
     ) -> Optional[trimesh.Trimesh]:
         """Returns a combined mesh of all items, optionally adjusted to terrain height."""
-        if not self.locations:
+        if not self.transmitters:
             return None
 
         meshes = []
-        for x, y, h in self.locations:
+        for tx in self.transmitters:
             c = trimesh.creation.cylinder(
-                radius=self.CYLINDER_RADIUS, height=h, sections=self.CYLINDER_SECTIONS
+                radius=self.CYLINDER_RADIUS,
+                height=tx.height,
+                sections=self.CYLINDER_SECTIONS,
             )
 
             z_ground = 0.0
             if height_callback:
-                z_ground = height_callback(x, y)
+                z_ground = height_callback(tx.local_x, tx.local_y)
 
-            c.apply_translation([x, y, h / 2.0 + z_ground])
+            c.apply_translation([tx.local_x, tx.local_y, tx.height / 2.0 + z_ground])
             meshes.append(c)
 
         return trimesh.util.concatenate(meshes)
+
+    def save_transmitters_json(self, output_path: Path) -> None:
+        """Exports the transmitters to an Eclipse Ditto formatted JSON."""
+        ditto_items = []
+
+        for tx in self.transmitters:
+            item = {
+                "thingId": f"com.sionna:{tx.id}",
+                "attributes": {
+                    "location": {
+                        "latitude": tx.lat,
+                        "longitude": tx.lon,
+                        "height_m": tx.height,
+                    },
+                    "physical": {"model": tx.model, "type": tx.type},
+                },
+                "features": {
+                    "configuration": {
+                        "properties": {
+                            "transmit_power_dbm": tx.power_dbm,
+                            "mechanical_tilt": round(tx.tilt, 2),
+                            "azimuth_deg": round(tx.azimuth, 2),
+                            "carrier_frequency_hz": tx.frequency,
+                            "admin_state": "enabled",
+                        }
+                    },
+                    "status": {
+                        "properties": {
+                            "operational_state": "up",
+                            "active_users": tx.active_users,
+                        }
+                    },
+                },
+            }
+            ditto_items.append(item)
+
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w") as f:
+                json.dump(ditto_items, f, indent=2)
+            logger.info(f"Exported {len(ditto_items)} transmitters to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to export transmitters JSON: {e}")

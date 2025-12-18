@@ -1,11 +1,9 @@
-import logging
 import hashlib
 import requests
 import urllib3
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class DemDownloader:

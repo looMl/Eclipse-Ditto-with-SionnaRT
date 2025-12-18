@@ -1,7 +1,7 @@
 from sionna.rt import PathSolver
 from loguru import logger
-from app.core.scene_manager import SceneManager
-from app.core.sionna_renderer import SimulationRenderer
+from app.simulation.scene_manager import SceneManager
+from app.simulation.renderer import SimulationRenderer
 from app.config import Settings
 
 
