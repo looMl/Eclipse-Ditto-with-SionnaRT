@@ -9,7 +9,7 @@ class SimulationRenderer:
         self.renders_dir = get_project_root() / "app" / "renders"
         self.renders_dir.mkdir(parents=True, exist_ok=True)
 
-    def render(self, scene, camera, paths):
+    def render(self, scene, camera, paths=None):
         logger.info("Starting scene rendering.")
         output_path = self._get_next_filename(self.renders_dir, "paths_render", "png")
 

@@ -27,16 +27,16 @@ sionnart:
     position: [-39, -15, 4]
 
   camera:
-    position: [22, 47, 110]
+    position: [1000, -800, 600]
     orientation: [0, 0, 0]
-    look_at: [-18, 0, -8]
+    look_at: [-400, 0, 0]
   
   paths_simulation:
     max_depth: 5  # Controls reflection/diffraction depth. Higher = more realistic but significantly slower.
     num_samples: 1e6  # Number of rays cast from Transmitter. Higher = better chance of finding paths, more accurate results, but slower.
     
   rendering:
-    resolution: [480, 320]
+    resolution: [1024, 768]
     num_samples: 512  # Rendering parameters - adjust for quality vs. speed trade-off.
     show_devices: True
 

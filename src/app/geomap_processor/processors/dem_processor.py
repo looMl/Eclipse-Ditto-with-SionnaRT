@@ -183,6 +183,29 @@ class DemProcessor:
         return lon_list[0], lat_list[0]
 
     @staticmethod
+    def global_to_local(
+        lon: float, lat: float, origin_lon: float, origin_lat: float
+    ) -> Tuple[float, float]:
+        """
+        Converts global coordinates (lon, lat) to local metric coordinates (x, y).
+        """
+        dst_crs = DemProcessor._get_utm_crs(origin_lon, origin_lat)
+        src_crs = "EPSG:4326"
+
+        # Calculate origin in UTM
+        ox_list, oy_list = rasterio.warp.transform(
+            src_crs, dst_crs, [origin_lon], [origin_lat]
+        )
+        ox, oy = ox_list[0], oy_list[0]
+
+        # Project point to UTM
+        px_list, py_list = rasterio.warp.transform(src_crs, dst_crs, [lon], [lat])
+        px, py = px_list[0], py_list[0]
+
+        # Subtract origin
+        return px - ox, py - oy
+
+    @staticmethod
     def sample_elevation(
         elevation_data: np.ndarray,
         transform: rasterio.Affine,

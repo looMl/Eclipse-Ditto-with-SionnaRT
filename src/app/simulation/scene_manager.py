@@ -1,6 +1,8 @@
+import json
 from loguru import logger
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from app.config import get_project_root, Settings
+from app.geomap_processor.processors.dem_processor import DemProcessor
 
 
 class SceneManager:
@@ -10,16 +12,22 @@ class SceneManager:
     RX_ROWS = 1
     RX_COLS = 1
     SPACING = 0.5
-    FREQUENCY = 2.14e9
+    FREQUENCY = 3.5e9
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self.scene = self._load_scene()
         self.camera = self._setup_camera()
-        self.tx = None
+        self.transmitters = []
 
         self._configure_antenna_arrays()
-        self._setup_transmitter()
+
+        # Configure global scene parameters
+        self.scene.frequency = self.FREQUENCY
+        self.scene.synthetic_array = True
+
+        # Load dynamic transmitters
+        self.load_transmitters()
 
     def _load_scene(self):
         scene_filename = self.settings.sionnart.scene_name
@@ -67,18 +75,45 @@ class SceneManager:
         )
         logger.info("Antenna arrays configured.")
 
-    def _setup_transmitter(self):
-        pos = self.settings.sionnart.transmitter.position
-        logger.info(f"Added TX at {pos}.")
-        self.tx = Transmitter("tx", pos)
-        self.scene.add(self.tx)
+    def load_transmitters(self):
+        """Loads transmitters from JSON and adds them to the scene."""
+        json_path = get_project_root() / "ditto" / "things" / "transmitters.json"
+        if not json_path.exists():
+            logger.warning(f"Transmitters file not found at {json_path}")
+            return
 
-        # Set frequency and synthetic array mode
-        self.scene.frequency = self.FREQUENCY
-        self.scene.synthetic_array = True
+        # Calculate scene origin from config
+        g = self.settings.geo2sigmap
+        origin_lon = (g.min_lon + g.max_lon) / 2.0
+        origin_lat = (g.min_lat + g.max_lat) / 2.0
 
-        freq_ghz = (self.scene.frequency / 1e9).numpy().item()
-        logger.info(f"Scene frequency set to {freq_ghz:.2f} GHz.")
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+
+            for item in data:
+                tid = item.get("thingId", "unknown")
+                loc = item.get("attributes", {}).get("location", {})
+                lat = loc.get("latitude")
+                lon = loc.get("longitude")
+                h = loc.get("height_m")
+
+                if lat is not None and lon is not None:
+                    x, y = DemProcessor.global_to_local(
+                        lon, lat, origin_lon, origin_lat
+                    )
+                    pos = [x, y, h]
+                    # Sanitize name for Sionna/Mitsuba
+                    safe_name = tid.replace(".", "_").replace(":", "_")
+                    tx = Transmitter(name=safe_name, position=pos)
+                    self.scene.add(tx)
+                    self.transmitters.append(tx)
+                    logger.debug(f"Added Transmitter {safe_name} at {pos}")
+
+            logger.info(f"Loaded {len(self.transmitters)} transmitters into the scene.")
+
+        except Exception as e:
+            logger.error(f"Failed to load transmitters: {e}")
 
     def add_receiver(self, position: list, orientation: list) -> Receiver:
         logger.debug(f"Adding RX at {position} with orientation {orientation}.")
