@@ -85,6 +85,41 @@ class SceneXMLUpdater:
             f"Added shape '{shape_id}' pointing to '{filename}' with BSDF '{bsdf_id}'"
         )
 
-    def _get_bsdf_id(self, shape: ET.Element) -> Optional[str]:
-        ref = shape.find("ref[@name='bsdf']")
-        return ref.get("id") if ref is not None else None
+    def get_material_colors(self) -> dict[str, tuple[float, float, float]]:
+        """
+        Extracts material RGB reflectance values from the XML as tuple.
+        """
+        xml_colors = {}
+        for bsdf in self.root.findall(".//bsdf"):
+            mat_id = bsdf.get("id")
+            if not mat_id:
+                continue
+
+            rgb_node = bsdf.find(".//rgb[@name='reflectance']")
+            if rgb_node is not None:
+                val_str = rgb_node.get("value")
+                if val_str:
+                    try:
+                        r, g, b = map(float, val_str.split())
+                        xml_colors[mat_id] = (r, g, b)
+                    except ValueError:
+                        continue
+        return xml_colors
+
+    def get_projection_info(self) -> dict[str, any]:
+        """
+        Extracts projection-related metadata from the XML.
+        Returns a dict with center_lat, center_lon, and utm_zone.
+        """
+        info = {}
+        defaults = {
+            "center_lat": "scenegen_center_lat",
+            "center_lon": "scenegen_center_lon",
+            "utm_zone": "scenegen_UTM_zone",
+        }
+        for key, xml_name in defaults.items():
+            node = self.root.find(f".//default[@name='{xml_name}']")
+            if node is not None:
+                val = node.get("value")
+                info[key] = float(val) if "center" in key else val
+        return info

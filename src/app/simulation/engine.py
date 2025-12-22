@@ -1,19 +1,32 @@
+import mitsuba as mi
 from loguru import logger
-from app.simulation.scene_manager import SceneManager
-from app.simulation.renderer import SimulationRenderer
-from app.config import Settings
+from sionna.rt.radio_materials import ITURadioMaterial, RadioMaterial
 
 
-class SionnaRTEngine:
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        self.scene_manager = SceneManager(settings)
-        self.renderer = SimulationRenderer(settings)
+class SimulationEngine:
+    """
+    Manages the core SionnaRT/Mitsuba engine variant initialization.
+    """
 
-    def run_visualization(self):
-        """
-        Renders the scene with all loaded transmitters.
-        """
-        logger.info("Running scene visualization...")
-        self.renderer.render(self.scene_manager.scene, self.scene_manager.camera)
-        logger.info("Visualization complete.")
+    @staticmethod
+    def initialize(variant: str = "cuda_ad_mono_polarized"):
+        try:
+            logger.debug(f"Initializing Simulation Engine with variant: {variant}")
+            mi.set_variant(variant)
+            SimulationEngine._register_plugins()
+        except Exception as e:
+            logger.error(f"Failed to initialize Simulation Engine: {e}")
+            raise
+
+    @staticmethod
+    def _register_plugins():
+        """Registers custom SionnaRT BSDF plugins for the current variant."""
+        plugins = {
+            "itu-radio-material": ITURadioMaterial,
+            "radio-material": RadioMaterial,
+        }
+        for name, cls in plugins.items():
+            try:
+                mi.register_bsdf(name, lambda props, c=cls: c(props=props))
+            except Exception as e:
+                logger.debug(f"Plugin '{name}' registration: {e}")

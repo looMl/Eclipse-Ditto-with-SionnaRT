@@ -1,42 +1,29 @@
-import sys
-import os
-import matplotlib
 from loguru import logger
-
-from app.config import settings as cfg
-from app.simulation.engine import SionnaRTEngine
-
-# -1: CPU Only execution - 0: GPU only if compatible
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
-matplotlib.use("Agg")
+from app.simulation.engine import SimulationEngine
+from app.simulation.scene_manager import SceneManager
+from app.simulation.renderer import SimulationRenderer
 
 
-class SionnaRTSimulator:
-    """
-    The primary orchestration controller for SionnaRT simulations tests.
-    """
+class SimulatorCLI:
+    """Entry point for running simulations and renderings."""
 
-    def __init__(self):
-        self.engine = SionnaRTEngine(cfg)
+    def run_visual_render(self):
+        try:
+            # 1. Initialize Engine
+            SimulationEngine.initialize()
 
-    def run_visualization(self):
-        self.engine.run_visualization()
+            # 2. Prepare Scene
+            manager = SceneManager()
+            scene = manager.load_scene()
 
+            # 3. Render
+            renderer = SimulationRenderer()
+            renderer.render_rgb(scene)
 
-def run_cli():
-    logger.info("--- Running SionnaRT Visualization ---")
-    try:
-        simulator = SionnaRTSimulator()
-        simulator.run_visualization()
-        logger.info("--- Standalone visualization finished successfully. ---")
-    except Exception as e:
-        logger.critical(
-            f"A critical error occurred during standalone execution: {e}", exc_info=True
-        )
-        sys.exit(1)
+        except Exception as e:
+            logger.exception(f"Simulation execution failed: {e}")
 
 
 if __name__ == "__main__":
-    run_cli()
+    cli = SimulatorCLI()
+    cli.run_visual_render()
