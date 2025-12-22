@@ -36,7 +36,7 @@ sionnart:
     num_samples: 1e6  # Number of rays cast from Transmitter. Higher = better chance of finding paths, more accurate results, but slower.
     
   rendering:
-    resolution: [1024, 768]
+    resolution: [1920, 1080]
     num_samples: 512  # Rendering parameters - adjust for quality vs. speed trade-off.
     show_devices: True
 
