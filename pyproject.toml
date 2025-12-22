@@ -13,7 +13,6 @@ classifiers = [
 dependencies = [
     "sionna-rt==1.2.1",
     "tensorflow==2.19.0",
-    "tensorflow-io-gcs-filesystem<=0.31; sys_platform == 'win32'",
     "matplotlib==3.10.7",
     "paho-mqtt",
     "numpy",
@@ -23,8 +22,8 @@ dependencies = [
     "scene_generation",
 ]
 
-[tool.uv]
-dev-dependencies = []
+[dependency-groups]
+dev = []
 
 [tool.uv.sources]
 scene_generation = { git = "https://github.com/functions-lab/geo2sigmap.git", subdirectory = "package" }
