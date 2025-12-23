@@ -73,6 +73,20 @@ class SimulationRenderer:
         """Converts wireless scene to visual scene and adds transmitter markers."""
         visual_dict = visual_scene_from_wireless_scene(scene, sensor, max_depth=8)
 
+        # Ensure the sky is white and add artificaial sun light
+        if "integrator" in visual_dict:
+            visual_dict["integrator"]["hide_emitters"] = False
+
+        visual_dict["sun"] = {
+            "type": "directional",
+            "direction": [0.5, 0.5, -1.0],
+            "irradiance": {
+                "type": "rgb",
+                "value": [1.0, 1.0, 1.0],
+            },
+        }
+
+        # Add visual markers for transmitters
         marker_bsdf = {
             "type": "twosided",
             "nested": {

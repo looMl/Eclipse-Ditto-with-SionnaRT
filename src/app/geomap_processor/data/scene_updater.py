@@ -123,3 +123,9 @@ class SceneXMLUpdater:
                 val = node.get("value")
                 info[key] = float(val) if "center" in key else val
         return info
+
+    def _get_bsdf_id(self, shape: ET.Element) -> Optional[str]:
+        """Extracts the BSDF ID associated with a shape element."""
+        ref = shape.find("ref[@name='bsdf']")
+        return ref.get("id") if ref is not None else None
+
