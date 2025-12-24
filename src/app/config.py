@@ -58,6 +58,14 @@ class RenderingSettings(BaseModel):
     show_devices: bool
 
 
+class CoverageSettings(BaseModel):
+    samples_per_tx: int
+    max_depth: int
+    metric: str
+    vmin: float | None = None
+    vmax: float | None = None
+
+
 class Geo2SigmapSettings(BaseModel):
     min_lon: float
     min_lat: float
@@ -71,6 +79,7 @@ class SionnartSettings(BaseModel):
     camera: CameraSettings
     simulation: SimulationSettings = Field(..., alias="paths_simulation")
     rendering: RenderingSettings
+    coverage: CoverageSettings
 
 
 class LoggingSettings(BaseModel):
