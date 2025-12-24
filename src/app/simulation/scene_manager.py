@@ -82,7 +82,7 @@ class SceneManager:
             tilt = float(feat.get("mechanical_tilt", 0.0))
 
             tx = sionna.rt.Transmitter(
-                name=str(item["thingId"]),
+                name=str(item["thingId"]).replace(".", "_").replace(":", "_"),
                 position=[px - ox, py - oy, height],
                 orientation=[
                     (90.0 - azimuth) * np.pi / 180.0,  # Yaw
