@@ -36,12 +36,12 @@ sionnart:
     num_samples: 1e6  # Number of rays cast from Transmitter. Higher = better chance of finding paths, more accurate results, but slower.
     
   rendering:
-    resolution: [1920, 1080]
-    num_samples: 128  # Rendering parameters - adjust for quality vs. speed trade-off.
+    resolution: [3840, 2160]
+    num_samples: 512  # Rendering parameters - adjust for quality vs. speed trade-off.
     show_devices: True
 
   coverage:
-    samples_per_tx: 1e8  # If you increase: less noise, but more memory required
+    samples_per_tx: 1e8 # If you increase: less noise, but more memory required
     max_depth: 8  # Maximum number of ray scene interactions
     metric: "rss"  # Options: "rss" (received signal strength), "sinr" (signal-to-interference-plus-noise ratio), "path_gain"
     vmin: -120.0
