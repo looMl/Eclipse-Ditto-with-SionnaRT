@@ -32,6 +32,17 @@ class SceneManager:
 
         return scene
 
+    def get_transformer(self):
+        """Returns the transformer and origin offset for coordinate conversion."""
+        updater = SceneXMLUpdater(self.scene_path)
+        proj_info = updater.get_projection_info()
+
+        transformer = pyproj.Transformer.from_crs(
+            "EPSG:4326", proj_info["utm_zone"], always_xy=True
+        )
+        ox, oy = transformer.transform(proj_info["center_lon"], proj_info["center_lat"])
+        return transformer, (ox, oy)
+
     def _patch_visual_colors(self, scene: sionna.rt.Scene):
         """Restores visual colors from XML to the loaded Sionna materials."""
         updater = SceneXMLUpdater(self.scene_path)
@@ -47,18 +58,12 @@ class SceneManager:
             logger.warning("Transmitters registry not found.")
             return
 
-        updater = SceneXMLUpdater(self.scene_path)
-        proj_info = updater.get_projection_info()
-
-        transformer = pyproj.Transformer.from_crs(
-            "EPSG:4326", proj_info["utm_zone"], always_xy=True
-        )
-        ox, oy = transformer.transform(proj_info["center_lon"], proj_info["center_lat"])
+        transformer, (ox, oy) = self.get_transformer()
 
         with open(self.transmitters_json, "r") as f:
             data = json.load(f)
 
-        # Set default array if needed
+        # 5G Massive MIMO 32T32R
         if scene.tx_array is None:
             scene.tx_array = sionna.rt.PlanarArray(
                 num_rows=8,
