@@ -27,8 +27,9 @@ def measure_rss(lat: float, lon: float, height_m: float = 1.5):
     rx = rt.Receiver(name="rx", position=pos)
     scene.add(rx)
 
+    # Receiver as 2x2 MIMO Smartphone
     scene.rx_array = rt.PlanarArray(
-        num_rows=1,  # 2x2 MIMO is the minimum regular standard in phones
+        num_rows=1,
         num_cols=1,
         vertical_spacing=0.5,
         horizontal_spacing=0.5,
@@ -64,11 +65,12 @@ def measure_rss(lat: float, lon: float, height_m: float = 1.5):
         # Based on observed shape: (num_rx, num_rx_ant, num_tx, num_tx_ant)
         # power_linear[0, :, i, :] gives antenna pairs for receiver 0 and transmitter i
         antenna_pairs_power = power_linear[0, :, i, :]
-        max_gain_linear = np.max(antenna_pairs_power)
+        power_per_rx_antenna = np.sum(antenna_pairs_power, axis=1)
+        total_channel_gain_linear = np.max(power_per_rx_antenna)
 
         # Convert to dB
-        if max_gain_linear > 0:
-            gain_db = 10 * np.log10(max_gain_linear)
+        if total_channel_gain_linear > 0:
+            gain_db = 10 * np.log10(total_channel_gain_linear)
         else:
             gain_db = -140.0  # Floor for no signal
 
