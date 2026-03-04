@@ -63,11 +63,11 @@ class SceneManager:
         with open(self.transmitters_json, "r") as f:
             data = json.load(f)
 
-        # 5G Massive MIMO 32T32R
+        # Standard 4G/5G Sub-6 GHz Sector Antenna (e.g., 2T2R configuration)
         if scene.tx_array is None:
             scene.tx_array = sionna.rt.PlanarArray(
-                num_rows=8,
-                num_cols=2,
+                num_rows=4,
+                num_cols=1,
                 vertical_spacing=0.5,
                 horizontal_spacing=0.5,
                 pattern="tr38901",
