@@ -179,26 +179,7 @@ class SceneBuilder:
         # Provision things in Eclipse Ditto
         DittoManager().provision_simulation(json_path)
 
-        mesh = telecom_mgr.get_mesh(height_callback)
-        if mesh:
-            mesh_dir = self._output_dir / "mesh"
-            mesh_dir.mkdir(parents=True, exist_ok=True)
-
-            ply_path = mesh_dir / "transmitters.ply"
-            mesh.export(str(ply_path))
-            logger.info(f"Exported mesh to {ply_path}")
-
-            scene_path = self._output_dir / "scene.xml"
-            updater = SceneXMLUpdater(scene_path)
-
-            # Using standard ITU metal for transmitters
-            updater.add_mesh_shape(
-                "mesh/transmitters.ply", "mesh-transmitters", "mat-itu_metal"
-            )
-            updater.save()
-            logger.info("Telecom Infrastructure added to scene.")
-        else:
-            logger.info("No telecom infrastructure found or mesh generation failed.")
+        logger.info("Telecom Infrastructure data processed.")
 
     def _process_terrain(self, bbox: BoundingBox) -> Tuple[Any, Any, float]:
         """Generates terrain mesh from DEM and updates the scene."""

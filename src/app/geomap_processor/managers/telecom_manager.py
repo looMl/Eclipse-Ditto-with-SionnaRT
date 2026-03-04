@@ -1,12 +1,11 @@
 import json
 import random
-from typing import List, Tuple, Optional, Callable, Any
+from typing import List, Tuple, Any
 from dataclasses import dataclass
 from pathlib import Path
 from loguru import logger
 
 import osmnx as ox
-import trimesh
 from shapely.geometry import Point
 import geopandas as gpd
 
@@ -35,9 +34,7 @@ class TelecomManager:
     Manages fetching and processing of telecom infrastructure data.
     """
 
-    DEFAULT_HEIGHT = 150.0
-    CYLINDER_RADIUS = 2
-    CYLINDER_SECTIONS = 16
+    DEFAULT_HEIGHT = 30.0
 
     def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
@@ -134,33 +131,9 @@ class TelecomManager:
             power_dbm=random.uniform(43.0, 46.0),
             tilt=random.uniform(2, 6),
             azimuth=random.uniform(0, 360),
-            frequency=3.5e9,
+            frequency=1.8e9,
             active_users=random.randint(0, 100),
         )
-
-    def get_mesh(
-        self, height_callback: Optional[Callable[[float, float], float]] = None
-    ) -> Optional[trimesh.Trimesh]:
-        """Returns a combined mesh of all items, optionally adjusted to terrain height."""
-        if not self.transmitters:
-            return None
-
-        meshes = []
-        for tx in self.transmitters:
-            c = trimesh.creation.cylinder(
-                radius=self.CYLINDER_RADIUS,
-                height=tx.height,
-                sections=self.CYLINDER_SECTIONS,
-            )
-
-            z_ground = 0.0
-            if height_callback:
-                z_ground = height_callback(tx.local_x, tx.local_y)
-
-            c.apply_translation([tx.local_x, tx.local_y, tx.height / 2.0 + z_ground])
-            meshes.append(c)
-
-        return trimesh.util.concatenate(meshes)
 
     def save_transmitters_json(self, output_path: Path) -> None:
         """Exports the transmitters to an Eclipse Ditto formatted JSON."""
