@@ -8,9 +8,9 @@ from app.simulation.scene_manager import SceneManager
 from app.config import settings
 
 
-def measure_rss(lat: float, lon: float, height_m: float = 1.5):
+def measure_rsrp(lat: float, lon: float, height_m: float = 1.5):
     """
-    Measures the Received Signal Strength (RSS) in dBm at a given geo-position.
+    Measures the Reference Signal Received Power (RSRP) in dBm at a given geo-position.
     """
     SimulationEngine.initialize()
 
@@ -21,7 +21,7 @@ def measure_rss(lat: float, lon: float, height_m: float = 1.5):
     px, py = transformer.transform(lon, lat)
     pos = [px - ox, py - oy, height_m]
 
-    logger.info(f"Measuring RSS at lat={lat}, lon={lon}, height={height_m}")
+    logger.info(f"Measuring RSRP at lat={lat}, lon={lon}, height={height_m}")
     logger.debug(f"Calculated scene position: {pos}")
 
     rx = rt.Receiver(name="rx", position=pos)
@@ -45,14 +45,12 @@ def measure_rss(lat: float, lon: float, height_m: float = 1.5):
         samples_per_src=settings.sionnart.coverage.samples_per_tx,
     )
 
-    # Calculate RSS from paths
+    # Calculate channel gain from paths
     a_data = paths.a
 
-    # In some mitsuba variants, paths.a is a tuple (real, imag)
     if isinstance(a_data, tuple):
         real = np.array(a_data[0])
         imag = np.array(a_data[1])
-        # power = sum(real^2 + imag^2) over paths (-1)
         power_linear = np.sum(real**2 + imag**2, axis=-1)
     else:
         a = np.array(a_data)
@@ -61,30 +59,39 @@ def measure_rss(lat: float, lon: float, height_m: float = 1.5):
     transmitters = list(scene.transmitters.values())
     results = []
 
-    for i, tx in enumerate(transmitters):
-        # Based on observed shape: (num_rx, num_rx_ant, num_tx, num_tx_ant)
-        # power_linear[0, :, i, :] gives antenna pairs for receiver 0 and transmitter i
-        antenna_pairs_power = power_linear[0, :, i, :]
-        power_per_rx_antenna = np.sum(antenna_pairs_power, axis=1)
-        total_channel_gain_linear = np.max(power_per_rx_antenna)
+    # 4G LTE Subcarrier Configuration
+    # 10 MHz = 50 PRBs * 12 = 600 subcarriers
+    # 15 MHz = 75 PRBs * 12 = 900 subcarriers
+    NUM_SUBCARRIERS = 900
+    SUBCARRIER_POWER_OFFSET_DB = 10 * np.log10(NUM_SUBCARRIERS)
 
-        # Convert to dB
+    for i, tx in enumerate(transmitters):
+        # Shape: (num_rx, num_rx_ant, num_tx, num_tx_ant)
+        antenna_pairs_power = power_linear[0, :, i, :]
+        # Sum power across all TX antennas for each RX antenna
+        power_per_rx_antenna = np.sum(antenna_pairs_power, axis=1)
+        # Averaging the received power across the active branches
+        total_channel_gain_linear = np.mean(power_per_rx_antenna)
+
+        # Convert channel gain to dB
         if total_channel_gain_linear > 0:
             gain_db = 10 * np.log10(total_channel_gain_linear)
         else:
-            gain_db = -140.0  # Floor for no signal
+            gain_db = -150.0  # Floor for no signal
 
         pl_db = -gain_db
 
-        # RSS (dBm) = P_tx (dBm) + Gain (dB)
-        tx_power = float(np.array(tx.power_dbm).flatten()[0])
-        rss_dbm = tx_power + float(gain_db)
+        # Total Transmit Power
+        tx_power_total_dbm = float(np.array(tx.power_dbm).flatten()[0])
+
+        # RSRP = Total TX Power + Channel Gain - Subcarrier Offset
+        rsrp_dbm = tx_power_total_dbm + float(gain_db) - SUBCARRIER_POWER_OFFSET_DB
 
         results.append(
             {
                 "thingId": tx.name.replace("_", ":").replace("__", "."),
                 "name": tx.name,
-                "rss_dbm": float(rss_dbm),
+                "rsrp_dbm": float(rsrp_dbm),
                 "pathloss_db": float(pl_db),
             }
         )
@@ -94,7 +101,7 @@ def measure_rss(lat: float, lon: float, height_m: float = 1.5):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Measure RSS at a specific Geo-coordinate."
+        description="Measure RSRP at a specific Geo-coordinate."
     )
     parser.add_argument(
         "--lat", type=float, required=True, help="Latitude of the measurement point"
@@ -109,27 +116,26 @@ if __name__ == "__main__":
         help="Height above ground in meters (default: 1.5)",
     )
 
-    # Example usage: uv run -m app.services.rss_measurer --lat 46.0668 --lon 11.1155 --height 1.5
     args = parser.parse_args()
 
     try:
-        results = measure_rss(args.lat, args.lon, args.height)
+        results = measure_rsrp(args.lat, args.lon, args.height)
 
-        print("\n" + "=" * 60)
-        print(f" RSS MEASUREMENT AT: {args.lat}, {args.lon} (h={args.height}m)")
-        print("=" * 60)
-        print(f"{'Transmitter Name':<30} | {'RSS (dBm)':>10} | {'PL (dB)':>8}")
-        print("-" * 60)
+        print("\n" + "=" * 62)
+        print(f" RSRP MEASUREMENT AT: {args.lat}, {args.lon} (h={args.height}m)")
+        print("=" * 62)
+        print(f"{'Transmitter Name':<30} | {'RSRP (dBm)':>10} | {'PL (dB)':>8}")
+        print("-" * 62)
 
-        for r in sorted(results, key=lambda x: x["rss_dbm"], reverse=True):
-            print(f"{r['name']:<30} | {r['rss_dbm']:10.2f} | {r['pathloss_db']:8.2f}")
+        for r in sorted(results, key=lambda x: x["rsrp_dbm"], reverse=True):
+            print(f"{r['name']:<30} | {r['rsrp_dbm']:10.2f} | {r['pathloss_db']:8.2f}")
 
         if results:
-            best = max(results, key=lambda x: x["rss_dbm"])
-            print("-" * 60)
-            print(f"STRONGEST SERVER: {best['name']} at {best['rss_dbm']:.2f} dBm")
-        print("=" * 60 + "\n")
+            best = max(results, key=lambda x: x["rsrp_dbm"])
+            print("-" * 62)
+            print(f"STRONGEST SERVER: {best['name']} at {best['rsrp_dbm']:.2f} dBm")
+        print("=" * 62 + "\n")
 
     except Exception as e:
-        logger.exception(f"RSS measurement failed: {e}")
+        logger.exception(f"RSRP measurement failed: {e}")
         sys.exit(1)
