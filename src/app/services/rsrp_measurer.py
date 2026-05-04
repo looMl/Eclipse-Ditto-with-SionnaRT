@@ -8,21 +8,18 @@ from app.simulation.scene_manager import SceneManager
 from app.config import settings
 
 
-def measure_rsrp(lat: float, lon: float, height_m: float = 1.5):
+def measure_rsrp(x: float, y: float, z: float = 1.5):
     """
-    Measures the Reference Signal Received Power (RSRP) in dBm at a given geo-position.
+    Measures the Reference Signal Received Power (RSRP) in dBm at a given scene position.
     """
     SimulationEngine.initialize()
 
     manager = SceneManager()
     scene = manager.load_scene()
 
-    transformer, (ox, oy) = manager.get_transformer()
-    px, py = transformer.transform(lon, lat)
-    pos = [px - ox, py - oy, height_m]
+    pos = [x, y, z]
 
-    logger.info(f"Measuring RSRP at lat={lat}, lon={lon}, height={height_m}")
-    logger.debug(f"Calculated scene position: {pos}")
+    logger.info(f"Measuring RSRP at x={x}, y={y}, z={z}")
 
     rx = rt.Receiver(name="rx", position=pos)
     scene.add(rx)

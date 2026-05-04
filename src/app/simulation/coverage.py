@@ -72,8 +72,8 @@ class CoverageProcessor:
             }
             surface = mi.load_dict(ply_dict)
 
-            # Shift upwards by 1.5m to simulate user height
-            transform_mesh(surface, translation=np.array([0, 0, 1.5]))
+            # Translate by z 0.1 to avoid Z-fighting with the terrain
+            transform_mesh(surface, translation=np.array([0, 0, 0.1]))
 
             return surface
 

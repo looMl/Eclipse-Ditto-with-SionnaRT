@@ -175,5 +175,14 @@ class SimulationRenderer:
         self.renders_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_next_filename(self, prefix: str) -> Path:
-        idx = len(list(self.renders_dir.glob(f"{prefix}*.png"))) + 1
-        return self.renders_dir / f"{prefix}{idx}.png"
+        existing_files = list(self.renders_dir.glob(f"{prefix}*.png"))
+        max_idx = 0
+        for p in existing_files:
+            try:
+                idx_str = p.stem.replace(prefix, "")
+                idx = int(idx_str)
+                if idx > max_idx:
+                    max_idx = idx
+            except ValueError:
+                pass
+        return self.renders_dir / f"{prefix}{max_idx + 1}.png"
