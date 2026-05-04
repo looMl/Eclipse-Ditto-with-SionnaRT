@@ -99,8 +99,8 @@ class TelecomManager:
             lon, lat = self._get_geometry_center(geom_orig)
 
             # Populate Transmitter Data
-            tx = self._create_transmitter(idx, lat, lon, x - cx, y - cy)
-            self.transmitters.append(tx)
+            tx_list = self._create_site_transmitters(idx, lat, lon, x - cx, y - cy)
+            self.transmitters.extend(tx_list)
 
     def _get_geometry_center(self, geom: Any) -> Tuple[float, float]:
         """Extracts (x, y) from a Point or (centroid.x, centroid.y) from other geometries."""
@@ -108,32 +108,41 @@ class TelecomManager:
             return geom.x, geom.y
         return geom.centroid.x, geom.centroid.y
 
-    def _create_transmitter(
+    def _create_site_transmitters(
         self, idx: Any, lat: float, lon: float, local_x: float, local_y: float
-    ) -> Transmitter:
-        """Creates a Transmitter object with synthetic simulation data."""
+    ) -> List[Transmitter]:
+        """Creates 3 Transmitters (sectors) for a single cell site."""
 
         # Clean up ID if it comes as a tuple (e.g. ('node', 12345))
         if isinstance(idx, tuple) and len(idx) > 1:
-            tx_id = str(idx[1])
+            site_id = str(idx[1])
         else:
-            tx_id = str(idx)
+            site_id = str(idx)
 
-        return Transmitter(
-            id=tx_id,
-            lat=lat,
-            lon=lon,
-            height=self.DEFAULT_HEIGHT,
-            local_x=local_x,
-            local_y=local_y,
-            model="Generic 5G Tower",
-            type="Macro",
-            power_dbm=random.uniform(43.0, 46.0),
-            tilt=random.uniform(2, 6),
-            azimuth=random.uniform(0, 360),
-            frequency=1.8e9,
-            active_users=random.randint(0, 100),
-        )
+        # Base orientation for the whole site so not all towers point True North
+        base_azimuth = random.uniform(0, 119)
+        sectors = []
+
+        for sector_idx in range(3):
+            azimuth = (base_azimuth + (sector_idx * 120)) % 360
+            tx = Transmitter(
+                id=f"{site_id}_s{sector_idx}",
+                lat=lat,
+                lon=lon,
+                height=self.DEFAULT_HEIGHT,
+                local_x=local_x,
+                local_y=local_y,
+                model="Generic 5G Sector",
+                type="Macro",
+                power_dbm=random.uniform(43.0, 46.0),
+                tilt=random.uniform(2, 6),
+                azimuth=azimuth,
+                frequency=1.8e9,
+                active_users=random.randint(0, 33), # Divided by roughly 3 from old max
+            )
+            sectors.append(tx)
+            
+        return sectors
 
     def save_transmitters_json(self, output_path: Path) -> None:
         """Exports the transmitters to an Eclipse Ditto formatted JSON."""
