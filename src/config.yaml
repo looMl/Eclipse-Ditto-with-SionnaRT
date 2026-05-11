@@ -41,18 +41,18 @@ sionnart:
     show_devices: True
 
   coverage:
-    samples_per_tx: 100000000  # 1e8 If you increase: less noise, but more memory required
+    samples_per_tx: 10000000   # 1e7 Keep samples_per_tx × num_tx ≤ 4,294,967,295 (uint32 limit)
     max_depth: 8  # Maximum number of ray scene interactions
     metric: "rss"  # Options: "rss" (received signal strength), "sinr" (signal-to-interference-plus-noise ratio), "path_gain"
     vmin: -140.0
     vmax: -40.0
 
   vegetation:
-    enabled: false
+    enabled: true
     frequency_hz: 1.8e9         # Carrier frequency in Hz (must be <= 7.125 GHz)
     leaf_state: "in_leaf"       # "in_leaf" or "out_of_leaf"
     tcd_source: "esa_worldcover"    # Options: "esa_worldcover", "worldcover+ndvi", "copernicus_hrl"
-    chm_source: "eth_global_2020"   # Options: "eth_global_2020", "heuristic"
+    chm_source: "heuristic"          # Options: "heuristic" (eth_global_2020 hosting is dead, GEE option is valid but requires auth key)
     raster_step_m: 1.0              # LOS sampling step in metres (auto-capped to cell_size/2)
     heuristic_heights:              # Fallback canopy heights (m) when CHM raster is absent
       forest: 18.0
