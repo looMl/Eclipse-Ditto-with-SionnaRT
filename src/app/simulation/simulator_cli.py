@@ -54,7 +54,7 @@ class SimulatorCLI:
         logger.info("Mode: Coverage Analysis")
         processor = CoverageProcessor(scene)
         radio_map, attenuation_db = processor.compute_coverage_map()
-        renderer.render_coverage(scene, radio_map)
+        renderer.render_coverage(scene, radio_map, attenuation_db)
 
 
 if __name__ == "__main__":

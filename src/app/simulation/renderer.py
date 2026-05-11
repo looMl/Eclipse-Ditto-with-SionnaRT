@@ -45,7 +45,7 @@ class SimulationRenderer:
             # Save
             self._save_image(np.array(image), self._get_next_filename("render_"))
 
-    def render_coverage(self, scene, radio_map):
+    def render_coverage(self, scene, radio_map, attenuation_db=None):
         """
         Renders the scene with a high-quality radio map overlay using Gouraud shading.
         """
@@ -94,6 +94,7 @@ class SimulationRenderer:
                     settings_cov.vmin,
                     settings_cov.vmax,
                     "viridis",
+                    attenuation_db=attenuation_db,
                 )
 
             # 5. Render Overlay & Composite

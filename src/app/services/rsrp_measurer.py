@@ -5,7 +5,10 @@ import argparse
 from loguru import logger
 from app.simulation.engine import SimulationEngine
 from app.simulation.scene_manager import SceneManager
-from app.config import settings
+from app.config import settings, get_project_root
+from app.geomap_processor.utils.vegetation_field import VegetationField
+from app.simulation.vegetation_path_integrator import PathDepthIntegrator
+from app.simulation.itu_p833 import excess_loss_db
 
 
 def measure_rsrp(x: float, y: float, z: float = 1.5):
@@ -56,6 +59,25 @@ def measure_rsrp(x: float, y: float, z: float = 1.5):
     transmitters = list(scene.transmitters.values())
     results = []
 
+    # Vegetation correction setup (no-op when disabled or field absent)
+    veg_integrator = None
+    veg_freq_hz = 1.8e9
+    veg_leaf_state = "in_leaf"
+    veg_cfg = getattr(settings.sionnart, "vegetation", None)
+    if veg_cfg is not None and getattr(veg_cfg, "enabled", False):
+        npz_path = get_project_root() / "scene" / "mesh" / "vegetation_field.npz"
+        if npz_path.exists():
+            _field = VegetationField.load(npz_path)
+            veg_integrator = PathDepthIntegrator(
+                _field, step_m=getattr(veg_cfg, "raster_step_m", 1.0)
+            )
+            veg_freq_hz = getattr(veg_cfg, "frequency_hz", 1.8e9)
+            veg_leaf_state = getattr(veg_cfg, "leaf_state", "in_leaf")
+        else:
+            logger.warning(
+                "Vegetation field not found; skipping vegetation correction."
+            )
+
     # 4G LTE Subcarrier Configuration
     # 10 MHz = 50 PRBs * 12 = 600 subcarriers
     # 15 MHz = 75 PRBs * 12 = 900 subcarriers
@@ -83,6 +105,12 @@ def measure_rsrp(x: float, y: float, z: float = 1.5):
 
         # RSRP = Total TX Power + Channel Gain - Subcarrier Offset
         rsrp_dbm = tx_power_total_dbm + float(gain_db) - SUBCARRIER_POWER_OFFSET_DB
+
+        if veg_integrator is not None:
+            tx_pos = np.array(tx.position, dtype="float32").flatten()[:3]
+            rx_pos = np.array([[x, y, z]], dtype="float32")
+            depth = veg_integrator.integrate(tx_pos, rx_pos)[0]
+            rsrp_dbm -= float(excess_loss_db(depth, veg_freq_hz, veg_leaf_state))
 
         results.append(
             {
