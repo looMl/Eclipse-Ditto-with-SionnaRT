@@ -6,7 +6,12 @@ from sionna.rt import MeshRadioMap
 
 
 def prepare_gouraud_shading_for_radio_map(
-    radio_map: MeshRadioMap, metric: str, vmin: float, vmax: float, cmap: str
+    radio_map: MeshRadioMap,
+    metric: str,
+    vmin: float,
+    vmax: float,
+    cmap: str,
+    attenuation_db: np.ndarray | None = None,
 ) -> mi.Shape:
     """
     Converts a flat-shaded MeshRadioMap into a vertex-colored Mitsuba shape.
@@ -14,14 +19,26 @@ def prepare_gouraud_shading_for_radio_map(
     This prepares the mesh for Gouraud shading (vertex interpolation) by the renderer,
     creating a smooth gradient instead of discrete triangle colors.
     """
-    # 1. Get scalar values per face
-    # tx=None implies max value over all transmitters
-    rm_values = radio_map.transmitter_radio_map(metric=metric, tx=None).numpy()
+    # 4G LTE 15 MHz = 900 subcarriers
+    NUM_SUBCARRIERS = 900
 
-    if metric == "rss":
-        # 4G LTE 15 MHz = 900 subcarriers
-        NUM_SUBCARRIERS = 900
-        rm_values *= NUM_SUBCARRIERS
+    # 1. Get scalar values per face
+    if attenuation_db is not None:
+        # Per-TX path: subtract vegetation attenuation in dB before max-aggregating.
+        # Subtraction in dB == division in linear: rm_attenuated = rm / 10^(A/10).
+        num_tx = attenuation_db.shape[0]
+        rm_values = np.zeros(attenuation_db.shape[1], dtype="float64")
+        for k in range(num_tx):
+            rm_k = radio_map.transmitter_radio_map(metric=metric, tx=k).numpy()
+            if metric == "rss":
+                rm_k = rm_k * NUM_SUBCARRIERS
+            rm_k = rm_k / np.power(10.0, attenuation_db[k] / 10.0)
+            np.maximum(rm_values, rm_k, out=rm_values)
+    else:
+        # Fast path: Sionna aggregates over all TXs with max internally.
+        rm_values = radio_map.transmitter_radio_map(metric=metric, tx=None).numpy()
+        if metric == "rss":
+            rm_values *= NUM_SUBCARRIERS
 
     mesh = radio_map.measurement_surface
     num_vertices = mesh.vertex_count()
