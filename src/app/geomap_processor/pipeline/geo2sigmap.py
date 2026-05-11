@@ -6,6 +6,10 @@ from scene_generation.core import Scene
 from app.config import settings, get_project_root
 from app.geomap_processor.managers.telecom_manager import TelecomManager
 from app.geomap_processor.managers.building_manager import BuildingMesher
+from app.geomap_processor.managers.vegetation_manager import VegetationManager
+from app.geomap_processor.data.vegetation_raster_downloader import (
+    VegetationRasterDownloader,
+)
 from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 from app.geomap_processor.data.dem_downloader import DemDownloader
 from app.geomap_processor.processors.dem_processor import DemProcessor
@@ -14,6 +18,7 @@ from app.geomap_processor.utils.geometry_utils import (
     MaterialConfig,
     resolve_material,
 )
+from rasterio.crs import CRS
 from app.services.ditto_manager import DittoManager
 
 
@@ -49,6 +54,8 @@ class SceneBuilder:
 
             # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
+
+            self._process_vegetation(bbox)
 
             # Define height callback for adjusting buildings meshes
             height_callback = self._create_height_callback(
@@ -108,6 +115,42 @@ class SceneBuilder:
             )
 
         return _cb
+
+    def _process_vegetation(self, bbox: BoundingBox) -> None:
+        """
+        Downloads TCD/CHM rasters, burns the OSM polygon mask, and writes
+        mesh/vegetation_field.npz for the simulation layer to consume.
+        """
+        veg_cfg = getattr(settings.sionnart, "vegetation", None)
+        if veg_cfg is None:
+            logger.info("No vegetation config found; skipping vegetation processing.")
+            return
+        if not getattr(veg_cfg, "enabled", True):
+            logger.info("Vegetation processing disabled in config.")
+            return
+
+        center_lon, center_lat = bbox.center
+        bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
+        target_crs = CRS.from_string(DemProcessor._get_utm_crs(center_lon, center_lat))
+
+        tcd_source = getattr(veg_cfg, "tcd_source", "esa_worldcover")
+        chm_source = getattr(veg_cfg, "chm_source", "eth_global_2020")
+
+        downloader = VegetationRasterDownloader(get_project_root() / "geotiffs")
+        tcd_path, chm_path = downloader.fetch(
+            bbox_tuple, tcd_source, chm_source, target_crs
+        )
+
+        if tcd_path is None:
+            logger.warning("TCD raster unavailable; skipping vegetation field.")
+            return
+
+        field = VegetationManager(bbox).build_density_field(tcd_path, chm_path)
+
+        npz_path = self._output_dir / "mesh" / "vegetation_field.npz"
+        npz_path.parent.mkdir(parents=True, exist_ok=True)
+        field.save(npz_path)
+        logger.success(f"Vegetation field saved: {npz_path}")
 
     def _optimize_buildings(
         self, height_callback: Optional[Callable[[float, float], float]]
