@@ -20,7 +20,9 @@ class CoverageProcessor:
         self.scene = scene
         self.settings = settings.sionnart.coverage
 
-    def compute_coverage_map(self) -> Tuple[RadioMap, Optional[np.ndarray]]:
+    def compute_coverage_map(
+        self, skip_vegetation: bool = False
+    ) -> Tuple[RadioMap, Optional[np.ndarray]]:
         """
         Computes the radio map using the terrain mesh as the measurement surface.
 
@@ -52,7 +54,9 @@ class CoverageProcessor:
             logger.error(f"Failed to compute coverage map: {e}")
             raise
 
-        attenuation_db = self._compute_vegetation_attenuation(radio_map)
+        attenuation_db = (
+            None if skip_vegetation else self._compute_vegetation_attenuation(radio_map)
+        )
         return radio_map, attenuation_db
 
     def _compute_vegetation_attenuation(self, radio_map) -> Optional[np.ndarray]:

@@ -22,6 +22,11 @@ class SimulatorCLI:
             default="render",
             help="Operation mode: 'render' for visual output, 'coverage' for signal analysis.",
         )
+        self.parser.add_argument(
+            "--no-vegetation",
+            action="store_true",
+            help="Skip vegetation attenuation correction (coverage mode only).",
+        )
 
     def execute(self):
         args = self.parser.parse_args()
@@ -38,7 +43,7 @@ class SimulatorCLI:
             renderer = SimulationRenderer()
 
             if args.mode == "coverage":
-                self._run_coverage(scene, renderer)
+                self._run_coverage(scene, renderer, skip_vegetation=args.no_vegetation)
             else:
                 self._run_render(scene, renderer)
 
@@ -50,10 +55,14 @@ class SimulatorCLI:
         logger.info("Mode: Visual Render")
         renderer.render_visual(scene)
 
-    def _run_coverage(self, scene, renderer: SimulationRenderer):
+    def _run_coverage(
+        self, scene, renderer: SimulationRenderer, skip_vegetation: bool = False
+    ):
         logger.info("Mode: Coverage Analysis")
         processor = CoverageProcessor(scene)
-        radio_map, attenuation_db = processor.compute_coverage_map()
+        radio_map, attenuation_db = processor.compute_coverage_map(
+            skip_vegetation=skip_vegetation
+        )
         renderer.render_coverage(scene, radio_map, attenuation_db)
 
 
