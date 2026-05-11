@@ -1,3 +1,4 @@
+import argparse
 from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
 from loguru import logger
@@ -37,7 +38,9 @@ class SceneBuilder:
                     f"Could not create output directory '{self._output_dir}': {e}"
                 )
 
-    def generate(self, bbox: BoundingBox, materials: MaterialConfig) -> None:
+    def generate(
+        self, bbox: BoundingBox, materials: MaterialConfig, enable_ditto: bool = False
+    ) -> None:
         """Orchestrates the scene generation process."""
         self._ensure_output_directory()
         bbox.validate()
@@ -63,7 +66,7 @@ class SceneBuilder:
             )
 
             self._optimize_buildings(height_callback)
-            self._process_telecom_infrastructure(bbox, height_callback)
+            self._process_telecom_infrastructure(bbox, height_callback, enable_ditto)
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
@@ -207,6 +210,7 @@ class SceneBuilder:
         self,
         bbox: BoundingBox,
         height_callback: Optional[Callable[[float, float], float]],
+        enable_ditto: bool = False,
     ) -> None:
         """
         Fetches and processes telecom data, exporting the mesh and updating scene.xml.
@@ -215,12 +219,14 @@ class SceneBuilder:
         telecom_mgr = TelecomManager(bbox=bbox)
         telecom_mgr.fetch_and_process()
 
-        # Export transmitters to JSON for Eclipse Ditto
+        # Export transmitters to JSON (one antenna Thing per site, 3 sector features each)
         json_path = get_project_root() / "ditto" / "things" / "transmitters.json"
         telecom_mgr.save_transmitters_json(json_path)
 
-        # Provision things in Eclipse Ditto
-        DittoManager().provision_simulation(json_path)
+        if enable_ditto:
+            DittoManager().provision_simulation(json_path)
+        else:
+            logger.info("Ditto provisioning skipped (pass --ditto to enable).")
 
         logger.info("Telecom Infrastructure data processed.")
 
@@ -275,6 +281,16 @@ class SceneBuilder:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Generate a 3D scene from geospatial data."
+    )
+    parser.add_argument(
+        "--ditto",
+        action="store_true",
+        help="Provision antenna Things on Eclipse Ditto after scene generation.",
+    )
+    args = parser.parse_args()
+
     try:
         bbox = BoundingBox(
             min_lon=settings.geo2sigmap.min_lon,
@@ -287,8 +303,7 @@ def main():
         output_dir = get_project_root() / "scene"
 
         builder = SceneBuilder(output_dir=output_dir)
-
-        builder.generate(bbox, material_config)
+        builder.generate(bbox, material_config, enable_ditto=args.ditto)
 
     except Exception as e:
         logger.critical(f"Application failed: {e}")

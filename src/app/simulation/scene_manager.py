@@ -53,7 +53,12 @@ class SceneManager:
                 mat.color = xml_colors[mat.id()]
 
     def _load_transmitters(self, scene: sionna.rt.Scene):
-        """Loads transmitters from json file and positions them in the scene."""
+        """Loads transmitters from json file and positions them in the scene.
+
+        Each JSON item represents one antenna site with sector_N features.
+        One Sionna transmitter is created per sector so the simulation uses
+        all 3 cells per site.
+        """
         if not self.transmitters_json.exists():
             logger.warning("Transmitters registry not found.")
             return
@@ -74,30 +79,33 @@ class SceneManager:
                 polarization="VH",
             )
 
+        tx_count = 0
         for item in data:
             loc = item.get("attributes", {}).get("location", {})
-            height = float(loc.get("height_m"))
-
+            height = float(loc.get("height_m", 30.0))
             px, py = transformer.transform(loc["longitude"], loc["latitude"])
+            base_name = str(item["thingId"]).replace(".", "_").replace(":", "_")
 
-            feat = (
-                item.get("features", {}).get("configuration", {}).get("properties", {})
-            )
-            azimuth = float(feat.get("azimuth_deg", 0.0))
-            tilt = float(feat.get("mechanical_tilt", 0.0))
+            for sector_key, sector_data in item.get("features", {}).items():
+                if not sector_key.startswith("sector_"):
+                    continue
+                props = sector_data.get("properties", {})
+                azimuth = float(props.get("azimuth_deg", 0.0))
+                tilt = float(props.get("mechanical_tilt", 0.0))
 
-            tx = sionna.rt.Transmitter(
-                name=str(item["thingId"]).replace(".", "_").replace(":", "_"),
-                position=[px - ox, py - oy, height],
-                orientation=[
-                    (90.0 - azimuth) * np.pi / 180.0,  # Yaw
-                    tilt * np.pi / 180.0,  # Pitch
-                    0.0,
-                ],
-                power_dbm=float(feat.get("transmit_power_dbm", 40.0)),
-            )
-            tx.display_radius = 15.0
-            tx.color = (1.0, 0.0, 0.0)
-            scene.add(tx)
+                tx = sionna.rt.Transmitter(
+                    name=f"{base_name}__{sector_key}",
+                    position=[px - ox, py - oy, height],
+                    orientation=[
+                        (90.0 - azimuth) * np.pi / 180.0,  # Yaw
+                        tilt * np.pi / 180.0,  # Pitch
+                        0.0,
+                    ],
+                    power_dbm=float(props.get("transmit_power_dbm", 40.0)),
+                )
+                tx.display_radius = 15.0
+                tx.color = (1.0, 0.0, 0.0)
+                scene.add(tx)
+                tx_count += 1
 
-        logger.info(f"Loaded {len(data)} transmitters into scene.")
+        logger.info(f"Loaded {tx_count} transmitters from {len(data)} antenna sites.")

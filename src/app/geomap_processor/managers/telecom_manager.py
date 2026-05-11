@@ -138,51 +138,64 @@ class TelecomManager:
                 tilt=random.uniform(2, 6),
                 azimuth=azimuth,
                 frequency=1.8e9,
-                active_users=random.randint(0, 33), # Divided by roughly 3 from old max
+                active_users=random.randint(0, 33),  # Divided by roughly 3 from old max
             )
             sectors.append(tx)
-            
+
         return sectors
 
     def save_transmitters_json(self, output_path: Path) -> None:
-        """Exports the transmitters to an Eclipse Ditto formatted JSON."""
-        ditto_items = []
+        """Exports transmitters to Eclipse Ditto JSON — one Thing per antenna site.
 
+        Each site's 3 sectors are nested as features (sector_0, sector_1, sector_2)
+        so a single API call provisions the full antenna instead of 3 separate Things.
+        """
+        # Group the flat sector list back into sites keyed by site_id
+        sites: dict[str, list[Transmitter]] = {}
         for tx in self.transmitters:
-            item = {
-                "thingId": f"com.sionna:{tx.id}",
-                "attributes": {
-                    "location": {
-                        "latitude": tx.lat,
-                        "longitude": tx.lon,
-                        "height_m": tx.height,
+            site_id = tx.id.rsplit("_s", 1)[0]
+            sites.setdefault(site_id, []).append(tx)
+
+        ditto_items = []
+        for site_id, sectors in sites.items():
+            ref = sectors[0]  # shared location/physical attributes
+            features = {}
+            for tx in sectors:
+                sector_idx = tx.id.rsplit("_s", 1)[1]
+                features[f"sector_{sector_idx}"] = {
+                    "properties": {
+                        "transmit_power_dbm": tx.power_dbm,
+                        "mechanical_tilt": round(tx.tilt, 2),
+                        "azimuth_deg": round(tx.azimuth, 2),
+                        "carrier_frequency_hz": tx.frequency,
+                        "admin_state": "enabled",
+                        "operational_state": "up",
+                        "active_users": tx.active_users,
+                    }
+                }
+
+            ditto_items.append(
+                {
+                    "thingId": f"com.sionna:antenna_{site_id}",
+                    "attributes": {
+                        "location": {
+                            "latitude": ref.lat,
+                            "longitude": ref.lon,
+                            "height_m": ref.height,
+                        },
+                        "physical": {"model": ref.model, "type": ref.type},
                     },
-                    "physical": {"model": tx.model, "type": tx.type},
-                },
-                "features": {
-                    "configuration": {
-                        "properties": {
-                            "transmit_power_dbm": tx.power_dbm,
-                            "mechanical_tilt": round(tx.tilt, 2),
-                            "azimuth_deg": round(tx.azimuth, 2),
-                            "carrier_frequency_hz": tx.frequency,
-                            "admin_state": "enabled",
-                        }
-                    },
-                    "status": {
-                        "properties": {
-                            "operational_state": "up",
-                            "active_users": tx.active_users,
-                        }
-                    },
-                },
-            }
-            ditto_items.append(item)
+                    "features": features,
+                }
+            )
 
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "w") as f:
                 json.dump(ditto_items, f, indent=2)
-            logger.info(f"Exported {len(ditto_items)} transmitters to {output_path}")
+            logger.info(
+                f"Exported {len(ditto_items)} antenna Things "
+                f"({len(self.transmitters)} sectors) to {output_path}"
+            )
         except Exception as e:
             logger.error(f"Failed to export transmitters JSON: {e}")
