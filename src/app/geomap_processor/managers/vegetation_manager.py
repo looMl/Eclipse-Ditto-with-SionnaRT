@@ -103,7 +103,15 @@ class VegetationManager:
         else:
             chm = self._build_heuristic_chm(gdf, tcd_path)
 
-        return VegetationField(tcd=tcd, chm=chm, transform=transform, crs=crs)
+        origin_lon, origin_lat = self.bbox.center
+        return VegetationField(
+            tcd=tcd,
+            chm=chm,
+            transform=transform,
+            crs=crs,
+            origin_lon=origin_lon,
+            origin_lat=origin_lat,
+        )
 
     # ------------------------------------------------------------------
     # Helpers
