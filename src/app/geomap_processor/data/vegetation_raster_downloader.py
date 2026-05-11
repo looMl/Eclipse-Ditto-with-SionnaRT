@@ -29,12 +29,6 @@ class VegetationRasterDownloader:
         "https://esa-worldcover.s3.eu-central-1.amazonaws.com"
         "/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile_id}_Map.tif"
     )
-    # ETH Global Canopy Height 2020 — 10 m, public, no auth
-    _ETH_CHM_URL = (
-        "https://libdrive.ethz.ch/index.php/s/cO8or7iOe5dT2Cs/download"
-        "?path=%2F10m_2020_version1"
-        "&files=ETH_GlobalCanopyHeight_10m_2020_version1_{tile_id}_Map.tif"
-    )
 
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
@@ -97,7 +91,13 @@ class VegetationRasterDownloader:
             return out_path
         try:
             if source == "eth_global_2020":
-                return self._eth_chm(bbox, out_path, target_crs)
+                logger.warning(
+                    "The ETH Global Canopy Height 2020 hosting (libdrive.ethz.ch) is no "
+                    "longer available. Set chm_source: 'heuristic' in config.yaml to use "
+                    "per-tag fallback heights instead."
+                )
+                out_path.unlink(missing_ok=True)
+                return None
             raise ValueError(f"Unknown chm_source: {source!r}")
         except Exception as e:
             logger.error(f"CHM fetch failed [{source}]: {e}")
@@ -213,25 +213,6 @@ class VegetationRasterDownloader:
             "Copernicus HRL WCS fetch not yet implemented. "
             "Use tcd_source='esa_worldcover' or 'worldcover+ndvi'."
         )
-
-    # ------------------------------------------------------------------
-    # ETH Global Canopy Height 2020 — zero-auth
-    # ------------------------------------------------------------------
-
-    def _eth_chm(
-        self,
-        bbox: Tuple[float, float, float, float],
-        out_path: Path,
-        target_crs: Optional[CRS],
-    ) -> Path:
-        tile_ids = self._tile_ids(bbox)
-        logger.info(f"Fetching ETH CHM tiles: {tile_ids}")
-        raw = self._download_tiles(tile_ids, self._ETH_CHM_URL, "chm")
-        self._merge_clip_reproject(
-            raw, bbox, out_path, target_crs, resampling=Resampling.bilinear
-        )
-        logger.info(f"ETH CHM saved: {out_path}")
-        return out_path
 
     # ------------------------------------------------------------------
     # Shared helpers
