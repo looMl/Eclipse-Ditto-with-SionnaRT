@@ -11,7 +11,7 @@ from app.simulation.vegetation_path_integrator import PathDepthIntegrator
 from app.simulation.itu_p833 import excess_loss_db
 
 
-def measure_rsrp(x: float, y: float, z: float = 1.5):
+def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = False):
     """
     Measures the Reference Signal Received Power (RSRP) in dBm at a given scene position.
     """
@@ -64,7 +64,11 @@ def measure_rsrp(x: float, y: float, z: float = 1.5):
     veg_freq_hz = 1.8e9
     veg_leaf_state = "in_leaf"
     veg_cfg = getattr(settings.sionnart, "vegetation", None)
-    if veg_cfg is not None and getattr(veg_cfg, "enabled", False):
+    if (
+        not skip_vegetation
+        and veg_cfg is not None
+        and getattr(veg_cfg, "enabled", False)
+    ):
         npz_path = get_project_root() / "scene" / "mesh" / "vegetation_field.npz"
         if npz_path.exists():
             _field = VegetationField.load(npz_path)
@@ -140,11 +144,26 @@ if __name__ == "__main__":
         default=1.5,
         help="Height above ground in meters (default: 1.5)",
     )
+    parser.add_argument(
+        "--no-vegetation",
+        action="store_true",
+        help="Disable vegetation attenuation correction.",
+    )
 
     args = parser.parse_args()
 
     try:
-        results = measure_rsrp(args.lat, args.lon, args.height)
+        manager = SceneManager()
+        transformer, (ox, oy) = manager.get_transformer()
+        x, y = transformer.transform(args.lon, args.lat)
+        local_x, local_y = x - ox, y - oy
+        logger.info(
+            f"Converted ({args.lat}, {args.lon}) → scene-local ({local_x:.1f}, {local_y:.1f}) m"
+        )
+
+        results = measure_rsrp(
+            local_x, local_y, args.height, skip_vegetation=args.no_vegetation
+        )
 
         print("\n" + "=" * 62)
         print(f" RSRP MEASUREMENT AT: {args.lat}, {args.lon} (h={args.height}m)")
