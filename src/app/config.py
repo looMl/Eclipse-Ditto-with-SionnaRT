@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from typing import List, Literal
+from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 from loguru import logger
 import sys
@@ -66,6 +66,16 @@ class CoverageSettings(BaseModel):
     vmax: float | None = None
 
 
+class VegetationSettings(BaseModel):
+    enabled: bool = False
+    frequency_hz: float = 1.8e9
+    leaf_state: Literal["in_leaf", "out_of_leaf"] = "in_leaf"
+    tcd_source: str = "esa_worldcover"
+    chm_source: str = "eth_global_2020"
+    raster_step_m: float = 1.0
+    heuristic_heights: Dict[str, float] = Field(default_factory=dict)
+
+
 class Geo2SigmapSettings(BaseModel):
     min_lon: float
     min_lat: float
@@ -80,6 +90,7 @@ class SionnartSettings(BaseModel):
     simulation: SimulationSettings = Field(..., alias="paths_simulation")
     rendering: RenderingSettings
     coverage: CoverageSettings
+    vegetation: Optional[VegetationSettings] = None
 
 
 class LoggingSettings(BaseModel):

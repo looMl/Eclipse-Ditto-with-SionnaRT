@@ -35,7 +35,11 @@ worldcover_ndvi = [
 ]
 
 [dependency-groups]
-dev = ["ruff"]
+dev = ["ruff", "pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.uv.sources]
 scene_generation = { git = "https://github.com/functions-lab/geo2sigmap.git", subdirectory = "package" }
