@@ -20,10 +20,22 @@ dependencies = [
     "PyYAML",
     "pydantic==2.12.4",
     "scene_generation",
+    "rasterio",
+    "requests",
+    "shapely",
+    "osmnx",
+    "geopandas",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+worldcover_ndvi = [
+    "pystac-client",
+    "planetary-computer",
 ]
 
 [dependency-groups]
-dev = []
+dev = ["ruff"]
 
 [tool.uv.sources]
 scene_generation = { git = "https://github.com/functions-lab/geo2sigmap.git", subdirectory = "package" }

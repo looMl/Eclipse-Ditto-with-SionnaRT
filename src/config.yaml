@@ -29,7 +29,7 @@ sionnart:
   camera:
     position: [1000, -800, 600]
     orientation: [0, 0, 0]
-    look_at: [-400, 0, 0]
+    look_at: [-950, -200, -300]
   
   paths_simulation:
     max_depth: 5  # Controls reflection/diffraction depth. Higher = more realistic but significantly slower.
@@ -46,6 +46,28 @@ sionnart:
     metric: "rss"  # Options: "rss" (received signal strength), "sinr" (signal-to-interference-plus-noise ratio), "path_gain"
     vmin: -140.0
     vmax: -40.0
+
+  vegetation:
+    enabled: false
+    frequency_hz: 1.8e9         # Carrier frequency in Hz (must be <= 7.125 GHz)
+    leaf_state: "in_leaf"       # "in_leaf" or "out_of_leaf"
+    tcd_source: "esa_worldcover"    # Options: "esa_worldcover", "worldcover+ndvi", "copernicus_hrl"
+    chm_source: "eth_global_2020"   # Options: "eth_global_2020", "heuristic"
+    raster_step_m: 1.0              # LOS sampling step in metres (auto-capped to cell_size/2)
+    heuristic_heights:              # Fallback canopy heights (m) when CHM raster is absent
+      forest: 18.0
+      wood: 18.0
+      tree: 12.0
+      orchard: 8.0
+      vineyard: 4.0
+      park: 12.0
+      garden: 8.0
+      golf_course: 4.0
+      tree_row: 8.0
+      scrub: 4.0
+      heath: 2.0
+      meadow: 0.0
+      grass: 0.0
 
 geo2sigmap:
   min_lon: 10.983152
