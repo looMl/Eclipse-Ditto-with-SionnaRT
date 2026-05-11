@@ -18,6 +18,8 @@ from loguru import logger
 from app.geomap_processor.processors.dem_processor import DemProcessor
 from app.geomap_processor.utils.vegetation_field import VegetationField
 
+_CHUNK_FACES = 10_000  # max faces per inner batch (~120 MB peak at 730 steps, float64)
+
 
 @dataclass
 class DemSampler:
@@ -114,10 +116,20 @@ class PathDepthIntegrator:
         return depth_eff
 
     # ------------------------------------------------------------------
-    # Vectorised batch integrator (one TX, N filtered faces)
+    # Chunked batch integrator (one TX, N filtered faces → loop over chunks)
     # ------------------------------------------------------------------
 
     def _integrate_batch(
+        self, tx_xyz: np.ndarray, rx_xyz_array: np.ndarray
+    ) -> np.ndarray:
+        N = len(rx_xyz_array)
+        depth = np.zeros(N, dtype="float32")
+        for lo in range(0, N, _CHUNK_FACES):
+            hi = min(lo + _CHUNK_FACES, N)
+            depth[lo:hi] = self._integrate_chunk(tx_xyz, rx_xyz_array[lo:hi])
+        return depth
+
+    def _integrate_chunk(
         self, tx_xyz: np.ndarray, rx_xyz_array: np.ndarray
     ) -> np.ndarray:
         N = len(rx_xyz_array)
