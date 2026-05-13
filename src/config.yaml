@@ -54,6 +54,7 @@ sionnart:
 
   vegetation:
     enabled: true
+    mode: "per_path"            # "per_link" (single TX→RX line) or "per_path" (integrate per reflected ray)
     frequency_hz: 1.8e9         # Carrier frequency in Hz (must be <= 7.125 GHz)
     leaf_state: "in_leaf"       # "in_leaf" or "out_of_leaf"
     tcd_source: "esa_worldcover"    # Options: "esa_worldcover", "worldcover+ndvi", "copernicus_hrl"

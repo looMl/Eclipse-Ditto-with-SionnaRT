@@ -80,6 +80,7 @@ class VegetationSettings(BaseModel):
     chm_source: str = "eth_global_2020"
     raster_step_m: float = 1.0
     heuristic_heights: Dict[str, float] = Field(default_factory=dict)
+    mode: Literal["per_link", "per_path"] = "per_link"
 
 
 class Geo2SigmapSettings(BaseModel):

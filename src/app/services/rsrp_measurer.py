@@ -12,6 +12,114 @@ from app.simulation.itu_p833 import excess_loss_db
 from app.simulation.baselines.uma_38901 import predict_rsrp_uma
 
 
+def _veg_per_path_attenuation_linear(
+    paths,
+    integrator: PathDepthIntegrator,
+    freq_hz: float,
+    leaf_state: str,
+) -> np.ndarray:
+    """Per-(tx, path) linear vegetation attenuation factor in [0, 1].
+
+    Walks the path graph emitted by Sionna's PathSolver, builds a flat list of
+    every ray segment with bookkeeping back to (tx, path), runs the per-segment
+    integrator once, and reduces depths back per path. Geometry mirrors
+    ``sionna.rt.paths_to_segments`` but preserves the path-id mapping needed
+    to apply attenuation to per-path power before aggregation.
+    """
+    vertices = np.array(paths.vertices)
+    valid = np.array(paths.valid)
+    types = np.array(paths.interactions)
+    src = np.array(paths.sources).T
+    tgt = np.array(paths.targets).T
+    max_depth = vertices.shape[0]
+
+    if not paths.synthetic_array:
+        num_rx = paths.num_rx
+        rx_array_size = paths.rx_array.array_size
+        num_rx_patterns = len(paths.rx_array.antenna_pattern.patterns)
+        num_tx = paths.num_tx
+        tx_array_size = paths.tx_array.array_size
+        num_tx_patterns = len(paths.tx_array.antenna_pattern.patterns)
+        num_tgt = tgt.shape[0]
+        num_src = src.shape[0]
+        vertices = vertices.reshape(
+            max_depth,
+            num_rx,
+            num_rx_patterns,
+            rx_array_size,
+            num_tx,
+            num_tx_patterns,
+            tx_array_size,
+            -1,
+            3,
+        )[:, :, 0, :, :, 0, :, :, :].reshape(max_depth, num_tgt, num_src, -1, 3)
+        valid = valid.reshape(
+            num_rx,
+            num_rx_patterns,
+            rx_array_size,
+            num_tx,
+            num_tx_patterns,
+            tx_array_size,
+            -1,
+        )[:, 0, :, :, 0, :, :].reshape(num_tgt, num_src, -1)
+        types = types.reshape(
+            max_depth,
+            num_rx,
+            num_rx_patterns,
+            rx_array_size,
+            num_tx,
+            num_tx_patterns,
+            tx_array_size,
+            -1,
+        )[:, :, 0, :, :, 0, :, :].reshape(max_depth, num_tgt, num_src, -1)
+
+    num_tgt, num_src, num_paths = valid.shape
+    none_type = int(rt.InteractionType.NONE)
+
+    if num_paths == 0:
+        return np.ones((num_src, num_paths), dtype="float64")
+
+    p0_list, p1_list, tx_list, path_list = [], [], [], []
+    for rx_i in range(num_tgt):
+        for tx_i in range(num_src):
+            for p in range(num_paths):
+                if not valid[rx_i, tx_i, p]:
+                    continue
+                start = src[tx_i]
+                for i in range(max_depth):
+                    if int(types[i, rx_i, tx_i, p]) == none_type:
+                        break
+                    end = vertices[i, rx_i, tx_i, p]
+                    p0_list.append(start)
+                    p1_list.append(end)
+                    tx_list.append(tx_i)
+                    path_list.append(p)
+                    start = end
+                p0_list.append(start)
+                p1_list.append(tgt[rx_i])
+                tx_list.append(tx_i)
+                path_list.append(p)
+
+    atten = np.ones((num_src, num_paths), dtype="float64")
+    if not p0_list:
+        return atten
+
+    p0 = np.asarray(p0_list, dtype="float32")
+    p1 = np.asarray(p1_list, dtype="float32")
+    tx_idx = np.asarray(tx_list, dtype="int64")
+    path_idx = np.asarray(path_list, dtype="int64")
+
+    seg_depths = integrator.integrate_segments(p0, p1)
+
+    flat_idx = tx_idx * num_paths + path_idx
+    total_depths = np.bincount(
+        flat_idx, weights=seg_depths, minlength=num_src * num_paths
+    ).reshape(num_src, num_paths)
+
+    atten_db = excess_loss_db(total_depths, freq_hz, leaf_state)
+    return 10.0 ** (-atten_db / 10.0)
+
+
 def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = False):
     """
     Measures the Reference Signal Received Power (RSRP) in dBm at a given scene position.
@@ -50,24 +158,11 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
         diffuse_reflection=diffuse,
     )
 
-    # Calculate channel gain from paths
-    a_data = paths.a
-
-    if isinstance(a_data, tuple):
-        real = np.array(a_data[0])
-        imag = np.array(a_data[1])
-        power_linear = np.sum(real**2 + imag**2, axis=-1)
-    else:
-        a = np.array(a_data)
-        power_linear = np.sum(np.abs(a) ** 2, axis=-1)
-
-    transmitters = list(scene.transmitters.values())
-    results = []
-
     # Vegetation correction setup (no-op when disabled or field absent)
     veg_integrator = None
     veg_freq_hz = 1.8e9
     veg_leaf_state = "in_leaf"
+    veg_mode = "per_link"
     veg_cfg = getattr(settings.sionnart, "vegetation", None)
     if (
         not skip_vegetation
@@ -82,10 +177,36 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
             )
             veg_freq_hz = getattr(veg_cfg, "frequency_hz", 1.8e9)
             veg_leaf_state = getattr(veg_cfg, "leaf_state", "in_leaf")
+            veg_mode = getattr(veg_cfg, "mode", "per_link")
         else:
             logger.warning(
                 "Vegetation field not found; skipping vegetation correction."
             )
+
+    # Per-path channel power (keep path axis until veg attenuation has been applied)
+    a_data = paths.a
+    if isinstance(a_data, tuple):
+        real = np.array(a_data[0])
+        imag = np.array(a_data[1])
+        power_per_path = real**2 + imag**2
+    else:
+        a = np.array(a_data)
+        power_per_path = np.abs(a) ** 2
+
+    veg_per_path_active = veg_integrator is not None and veg_mode == "per_path"
+    if veg_per_path_active:
+        logger.info("Applying per-path vegetation attenuation...")
+        atten_lin = _veg_per_path_attenuation_linear(
+            paths, veg_integrator, veg_freq_hz, veg_leaf_state
+        )
+        # power_per_path shape: (num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths)
+        # atten_lin shape:      (num_tx, num_paths) → broadcast over rx/rx_ant/tx_ant.
+        power_per_path = power_per_path * atten_lin[None, None, :, None, :]
+
+    power_linear = np.sum(power_per_path, axis=-1)
+
+    transmitters = list(scene.transmitters.values())
+    results = []
 
     # 4G LTE Subcarrier Configuration
     # 10 MHz = 50 PRBs * 12 = 600 subcarriers
@@ -117,7 +238,7 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
         rsrp_dbm = tx_power_total_dbm + float(gain_db) - SUBCARRIER_POWER_OFFSET_DB
 
         tx_pos = np.array(tx.position, dtype="float32").flatten()[:3]
-        if veg_integrator is not None:
+        if veg_integrator is not None and not veg_per_path_active:
             rx_pos = np.array([[x, y, z]], dtype="float32")
             depth = veg_integrator.integrate(tx_pos, rx_pos)[0]
             rsrp_dbm -= float(excess_loss_db(depth, veg_freq_hz, veg_leaf_state))
