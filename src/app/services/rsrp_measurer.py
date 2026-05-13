@@ -9,6 +9,7 @@ from app.config import settings, get_project_root
 from app.geomap_processor.utils.vegetation_field import VegetationField
 from app.simulation.vegetation_path_integrator import PathDepthIntegrator
 from app.simulation.itu_p833 import excess_loss_db
+from app.simulation.baselines.uma_38901 import predict_rsrp_uma
 
 
 def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = False):
@@ -91,6 +92,7 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
     # 15 MHz = 75 PRBs * 12 = 900 subcarriers
     NUM_SUBCARRIERS = 900
     SUBCARRIER_POWER_OFFSET_DB = 10 * np.log10(NUM_SUBCARRIERS)
+    CARRIER_FREQ_GHZ = veg_freq_hz / 1e9
 
     for i, tx in enumerate(transmitters):
         # Shape: (num_rx, num_rx_ant, num_tx, num_tx_ant)
@@ -114,11 +116,25 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
         # RSRP = Total TX Power + Channel Gain - Subcarrier Offset
         rsrp_dbm = tx_power_total_dbm + float(gain_db) - SUBCARRIER_POWER_OFFSET_DB
 
+        tx_pos = np.array(tx.position, dtype="float32").flatten()[:3]
         if veg_integrator is not None:
-            tx_pos = np.array(tx.position, dtype="float32").flatten()[:3]
             rx_pos = np.array([[x, y, z]], dtype="float32")
             depth = veg_integrator.integrate(tx_pos, rx_pos)[0]
             rsrp_dbm -= float(excess_loss_db(depth, veg_freq_hz, veg_leaf_state))
+
+        tx_orient = np.array(tx.orientation, dtype="float64").flatten()[:3]
+        baseline = predict_rsrp_uma(
+            tx_position=tx_pos.astype("float64"),
+            tx_orientation_rad=(
+                float(tx_orient[0]),
+                float(tx_orient[1]),
+                float(tx_orient[2]),
+            ),
+            tx_power_dbm=tx_power_total_dbm,
+            rx_position=np.array([x, y, z], dtype="float64"),
+            f_ghz=CARRIER_FREQ_GHZ,
+            num_subcarriers=NUM_SUBCARRIERS,
+        )
 
         results.append(
             {
@@ -126,6 +142,9 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
                 "name": tx.name,
                 "rsrp_dbm": float(rsrp_dbm),
                 "pathloss_db": float(pl_db),
+                "rsrp_baseline_dbm": baseline["rsrp_dbm"],
+                "p_los": baseline["p_los"],
+                "d_3d_m": baseline["d_3d_m"],
             }
         )
 
@@ -169,20 +188,33 @@ if __name__ == "__main__":
             local_x, local_y, args.height, skip_vegetation=args.no_vegetation
         )
 
-        print("\n" + "=" * 62)
+        header_width = 90
+        print("\n" + "=" * header_width)
         print(f" RSRP MEASUREMENT AT: {args.lat}, {args.lon} (h={args.height}m)")
-        print("=" * 62)
-        print(f"{'Transmitter Name':<30} | {'RSRP (dBm)':>10} | {'PL (dB)':>8}")
-        print("-" * 62)
+        print("=" * header_width)
+        print(
+            f"{'Transmitter Name':<30} | {'RT (dBm)':>10} | {'UMa (dBm)':>10} | "
+            f"{'PL (dB)':>8} | {'d3D (m)':>8} | {'P_LOS':>5}"
+        )
+        print("-" * header_width)
 
         for r in sorted(results, key=lambda x: x["rsrp_dbm"], reverse=True):
-            print(f"{r['name']:<30} | {r['rsrp_dbm']:10.2f} | {r['pathloss_db']:8.2f}")
+            print(
+                f"{r['name']:<30} | {r['rsrp_dbm']:10.2f} | {r['rsrp_baseline_dbm']:10.2f} | "
+                f"{r['pathloss_db']:8.2f} | {r['d_3d_m']:8.1f} | {r['p_los']:5.2f}"
+            )
 
         if results:
-            best = max(results, key=lambda x: x["rsrp_dbm"])
-            print("-" * 62)
-            print(f"STRONGEST SERVER: {best['name']} at {best['rsrp_dbm']:.2f} dBm")
-        print("=" * 62 + "\n")
+            best_rt = max(results, key=lambda x: x["rsrp_dbm"])
+            best_uma = max(results, key=lambda x: x["rsrp_baseline_dbm"])
+            print("-" * header_width)
+            print(
+                f"STRONGEST SERVER (RT):  {best_rt['name']} at {best_rt['rsrp_dbm']:.2f} dBm"
+            )
+            print(
+                f"STRONGEST SERVER (UMa): {best_uma['name']} at {best_uma['rsrp_baseline_dbm']:.2f} dBm"
+            )
+        print("=" * header_width + "\n")
 
     except Exception as e:
         logger.exception(f"RSRP measurement failed: {e}")
