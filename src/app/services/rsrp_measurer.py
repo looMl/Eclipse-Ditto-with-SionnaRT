@@ -39,10 +39,14 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
 
     logger.info("Computing propagation paths...")
     solver = rt.PathSolver()
+    ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+    diffuse = ds_cfg is not None and getattr(ds_cfg, "enabled", False)
     paths = solver(
         scene,
         max_depth=settings.sionnart.coverage.max_depth,
         samples_per_src=settings.sionnart.coverage.samples_per_tx,
+        max_num_paths_per_src=settings.sionnart.coverage.max_num_paths_per_src,
+        diffuse_reflection=diffuse,
     )
 
     # Calculate channel gain from paths

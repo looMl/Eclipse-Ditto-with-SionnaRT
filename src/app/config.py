@@ -64,6 +64,12 @@ class CoverageSettings(BaseModel):
     metric: str
     vmin: float | None = None
     vmax: float | None = None
+    max_num_paths_per_src: int = 200_000
+
+
+class DiffuseScatteringSettings(BaseModel):
+    enabled: bool = False
+    scattering_coefficient: float = 0.25
 
 
 class VegetationSettings(BaseModel):
@@ -91,6 +97,7 @@ class SionnartSettings(BaseModel):
     rendering: RenderingSettings
     coverage: CoverageSettings
     vegetation: Optional[VegetationSettings] = None
+    diffuse_scattering: Optional[DiffuseScatteringSettings] = None
 
 
 class LoggingSettings(BaseModel):

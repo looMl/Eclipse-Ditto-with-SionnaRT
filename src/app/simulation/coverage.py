@@ -41,6 +41,8 @@ class CoverageProcessor:
             )
 
         solver = RadioMapSolver()
+        ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+        diffuse = ds_cfg is not None and getattr(ds_cfg, "enabled", False)
 
         try:
             radio_map = solver(
@@ -48,6 +50,7 @@ class CoverageProcessor:
                 measurement_surface=measurement_surface,
                 max_depth=self.settings.max_depth,
                 samples_per_tx=self.settings.samples_per_tx,
+                diffuse_reflection=diffuse,
             )
             logger.success("Coverage map computation completed.")
         except Exception as e:

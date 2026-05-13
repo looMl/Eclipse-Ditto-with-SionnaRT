@@ -28,6 +28,7 @@ class SceneManager:
         scene = sionna.rt.load_scene(str(self.scene_path))
 
         self._patch_visual_colors(scene)
+        self._apply_scattering(scene)
         self._load_transmitters(scene)
 
         return scene
@@ -42,6 +43,17 @@ class SceneManager:
         )
         ox, oy = transformer.transform(proj_info["center_lon"], proj_info["center_lat"])
         return transformer, (ox, oy)
+
+    def _apply_scattering(self, scene: sionna.rt.Scene):
+        ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+        if ds_cfg is None or not getattr(ds_cfg, "enabled", False):
+            return
+        nu = float(getattr(ds_cfg, "scattering_coefficient", 0.25))
+        for mat in scene.radio_materials.values():
+            mat.scattering_coefficient = nu
+        logger.info(
+            f"Applied diffuse scattering coefficient v={nu} to {len(scene.radio_materials)} materials."
+        )
 
     def _patch_visual_colors(self, scene: sionna.rt.Scene):
         """Restores visual colors from XML to the loaded Sionna materials."""
