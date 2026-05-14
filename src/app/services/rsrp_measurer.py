@@ -7,8 +7,8 @@ from app.simulation.engine import SimulationEngine
 from app.simulation.scene_manager import SceneManager
 from app.config import settings, get_project_root
 from app.geomap_processor.utils.vegetation_field import VegetationField
-from app.simulation.vegetation_path_integrator import PathDepthIntegrator
-from app.simulation.itu_p833 import excess_loss_db
+from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegrator
+from app.simulation.vegetation.itu_p833 import excess_loss_db
 from app.simulation.baselines.uma_38901 import predict_rsrp_uma
 
 
@@ -120,7 +120,43 @@ def _veg_per_path_attenuation_linear(
     return 10.0 ** (-atten_db / 10.0)
 
 
-def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = False):
+_Z90 = 1.2816  # Φ⁻¹(0.90) — used for the 80 % log-normal shadowing interval
+
+
+def _los_flags(paths) -> np.ndarray:
+    """Per-TX boolean: True if any valid path to the RX has no interactions (LOS)."""
+    none_type = int(rt.InteractionType.NONE)
+    valid = np.array(paths.valid)
+    types = np.array(paths.interactions)
+    max_depth = types.shape[0]
+
+    if not paths.synthetic_array:
+        num_rx = paths.num_rx
+        rx_sz = paths.rx_array.array_size
+        num_rx_pat = len(paths.rx_array.antenna_pattern.patterns)
+        num_tx = paths.num_tx
+        tx_sz = paths.tx_array.array_size
+        num_tx_pat = len(paths.tx_array.antenna_pattern.patterns)
+        num_tgt = np.array(paths.targets).T.shape[0]
+        num_src = np.array(paths.sources).T.shape[0]
+        valid = valid.reshape(num_rx, num_rx_pat, rx_sz, num_tx, num_tx_pat, tx_sz, -1)[
+            :, 0, :, :, 0, :, :
+        ].reshape(num_tgt, num_src, -1)
+        types = types.reshape(
+            max_depth, num_rx, num_rx_pat, rx_sz, num_tx, num_tx_pat, tx_sz, -1
+        )[:, :, 0, :, :, 0, :, :].reshape(max_depth, num_tgt, num_src, -1)
+
+    # LOS: valid path whose first-depth interaction type is NONE (no bounces)
+    is_los = valid & (types[0] == none_type)  # (num_tgt, num_src, num_paths)
+    return np.any(is_los, axis=(0, 2))  # (num_src,)
+
+
+def measure_rsrp(
+    x: float,
+    y: float,
+    z: float = 1.5,
+    skip_vegetation: bool = False,
+):
     """
     Measures the Reference Signal Received Power (RSRP) in dBm at a given scene position.
     """
@@ -157,6 +193,7 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
         max_num_paths_per_src=settings.sionnart.coverage.max_num_paths_per_src,
         diffuse_reflection=diffuse,
     )
+    los_flags = _los_flags(paths)
 
     # Vegetation correction setup (no-op when disabled or field absent)
     veg_integrator = None
@@ -208,6 +245,19 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
     transmitters = list(scene.transmitters.values())
     results = []
 
+    # Shadowing interval parameters
+    shadow_cfg = getattr(settings.sionnart, "shadowing", None)
+    sigma_db = (
+        float(getattr(shadow_cfg, "sigma_db", 6.0))
+        if shadow_cfg and getattr(shadow_cfg, "enabled", True)
+        else 0.0
+    )
+
+    handset_cfg = getattr(settings.sionnart, "handset", None)
+    body_loss_db = (
+        float(getattr(handset_cfg, "body_loss_db", 0.0)) if handset_cfg else 0.0
+    )
+
     # 4G LTE Subcarrier Configuration
     # 10 MHz = 50 PRBs * 12 = 600 subcarriers
     # 15 MHz = 75 PRBs * 12 = 900 subcarriers
@@ -234,8 +284,13 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
         # Total Transmit Power
         tx_power_total_dbm = float(np.array(tx.power_dbm).flatten()[0])
 
-        # RSRP = Total TX Power + Channel Gain - Subcarrier Offset
-        rsrp_dbm = tx_power_total_dbm + float(gain_db) - SUBCARRIER_POWER_OFFSET_DB
+        # RSRP = Total TX Power + Channel Gain - Subcarrier Offset - Body Loss
+        rsrp_dbm = (
+            tx_power_total_dbm
+            + float(gain_db)
+            - SUBCARRIER_POWER_OFFSET_DB
+            - body_loss_db
+        )
 
         tx_pos = np.array(tx.position, dtype="float32").flatten()[:3]
         if veg_integrator is not None and not veg_per_path_active:
@@ -262,10 +317,14 @@ def measure_rsrp(x: float, y: float, z: float = 1.5, skip_vegetation: bool = Fal
                 "thingId": tx.name.replace("_", ":").replace("__", "."),
                 "name": tx.name,
                 "rsrp_dbm": float(rsrp_dbm),
+                "rsrp_10_dbm": float(rsrp_dbm) - _Z90 * sigma_db,
+                "rsrp_90_dbm": float(rsrp_dbm) + _Z90 * sigma_db,
+                "sigma_shadow_db": sigma_db,
                 "pathloss_db": float(pl_db),
                 "rsrp_baseline_dbm": baseline["rsrp_dbm"],
                 "p_los": baseline["p_los"],
                 "d_3d_m": baseline["d_3d_m"],
+                "has_los_path": bool(los_flags[i]),
             }
         )
 
@@ -293,7 +352,6 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable vegetation attenuation correction.",
     )
-
     args = parser.parse_args()
 
     try:
@@ -302,27 +360,33 @@ if __name__ == "__main__":
         x, y = transformer.transform(args.lon, args.lat)
         local_x, local_y = x - ox, y - oy
         logger.info(
-            f"Converted ({args.lat}, {args.lon}) → scene-local ({local_x:.1f}, {local_y:.1f}) m"
+            f"Converted ({args.lat}, {args.lon}) -> scene-local ({local_x:.1f}, {local_y:.1f}) m"
         )
 
         results = measure_rsrp(
-            local_x, local_y, args.height, skip_vegetation=args.no_vegetation
+            local_x,
+            local_y,
+            args.height,
+            skip_vegetation=args.no_vegetation,
         )
 
-        header_width = 90
+        header_width = 105
         print("\n" + "=" * header_width)
         print(f" RSRP MEASUREMENT AT: {args.lat}, {args.lon} (h={args.height}m)")
         print("=" * header_width)
+        sigma = results[0]["sigma_shadow_db"] if results else 0.0
         print(
-            f"{'Transmitter Name':<30} | {'RT (dBm)':>10} | {'UMa (dBm)':>10} | "
-            f"{'PL (dB)':>8} | {'d3D (m)':>8} | {'P_LOS':>5}"
+            f"{'Transmitter Name':<30} | {'RT (dBm)':>10} | {'[p10,p90]':>14} | "
+            f"{'UMa (dBm)':>10} | {'PL (dB)':>8} | {'d3D (m)':>8} | {'P_LOS':>5}"
         )
         print("-" * header_width)
 
         for r in sorted(results, key=lambda x: x["rsrp_dbm"], reverse=True):
+            interval = f"[{r['rsrp_10_dbm']:5.1f},{r['rsrp_90_dbm']:5.1f}]"
             print(
-                f"{r['name']:<30} | {r['rsrp_dbm']:10.2f} | {r['rsrp_baseline_dbm']:10.2f} | "
-                f"{r['pathloss_db']:8.2f} | {r['d_3d_m']:8.1f} | {r['p_los']:5.2f}"
+                f"{r['name']:<30} | {r['rsrp_dbm']:10.2f} | {interval:>14} | "
+                f"{r['rsrp_baseline_dbm']:10.2f} | {r['pathloss_db']:8.2f} | "
+                f"{r['d_3d_m']:8.1f} | {r['p_los']:5.2f}"
             )
 
         if results:

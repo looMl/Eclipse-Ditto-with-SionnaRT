@@ -27,6 +27,9 @@ sionnart:
     enabled: true
     scattering_coefficient: 0.25  # ν: fraction of reflected energy scattered diffusely
 
+  handset:
+    body_loss_db: 3.0  # ITU-T P.1238 hand-held phone body-shadowing loss (dB)
+
   shadowing:
     enabled: true
     sigma_db: 6.0  # log-normal shadow fading std-dev (dB); urban macro typical 4-8 dB
