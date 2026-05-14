@@ -103,7 +103,9 @@ class SceneManager:
                     continue
                 props = sector_data.get("properties", {})
                 azimuth = float(props.get("azimuth_deg", 0.0))
-                tilt = float(props.get("mechanical_tilt", 0.0))
+                mechanical_tilt = float(props.get("mechanical_tilt", 0.0))
+                electrical_tilt = float(props.get("electrical_tilt_deg", 0.0))
+                tilt = mechanical_tilt + electrical_tilt
 
                 tx = sionna.rt.Transmitter(
                     name=f"{base_name}__{sector_key}",
