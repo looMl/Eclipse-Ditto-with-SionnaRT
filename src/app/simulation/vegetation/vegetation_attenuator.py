@@ -6,8 +6,8 @@ from loguru import logger
 from tqdm import tqdm
 
 from app.geomap_processor.utils.vegetation_field import VegetationField
-from app.simulation.itu_p833 import excess_loss_db
-from app.simulation.vegetation_path_integrator import PathDepthIntegrator
+from app.simulation.vegetation.itu_p833 import excess_loss_db
+from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegrator
 
 
 class VegetationAttenuator:

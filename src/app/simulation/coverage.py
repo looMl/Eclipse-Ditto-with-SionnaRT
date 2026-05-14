@@ -7,8 +7,8 @@ from sionna.rt.scene import Scene
 from app.config import settings, get_project_root
 from app.geomap_processor.utils.mesh_utils import subdivide_mesh
 from app.geomap_processor.utils.vegetation_field import VegetationField
-from app.simulation.vegetation_path_integrator import PathDepthIntegrator
-from app.simulation.vegetation_attenuator import VegetationAttenuator
+from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegrator
+from app.simulation.vegetation.vegetation_attenuator import VegetationAttenuator
 
 
 class CoverageProcessor:

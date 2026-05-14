@@ -3,7 +3,7 @@ import sys
 from loguru import logger
 from app.simulation.engine import SimulationEngine
 from app.simulation.scene_manager import SceneManager
-from app.simulation.renderer import SimulationRenderer
+from app.simulation.rendering.renderer import SimulationRenderer
 from app.simulation.coverage import CoverageProcessor
 
 

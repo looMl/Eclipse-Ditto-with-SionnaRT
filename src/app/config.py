@@ -1,55 +1,17 @@
 import yaml
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from loguru import logger
 import sys
 
 # --- Models schemas ---
 
 
-class MQTTPublisherSettings(BaseModel):
-    client_id_prefix: str
-    thing_id: str
-    base_topic: str
-    publish_interval_seconds: int
-    num_messages: int
-    initial_translation: float
-    translation_increment: float
-
-
-class MQTTWorkerSettings(BaseModel):
-    client_id_prefix: str
-    base_topic: str
-
-
-class MQTTSettings(BaseModel):
-    broker_host: str
-    broker_port: int
-    keepalive: int
-    publisher: MQTTPublisherSettings
-    worker: MQTTWorkerSettings
-
-
-class TransmitterSettings(BaseModel):
-    position: List[float]
-
-    @field_validator("position")
-    def check_len(cls, v):
-        if len(v) != 3:
-            raise ValueError("Position must be a list of 3 coordinates [x, y, z]")
-        return v
-
-
 class CameraSettings(BaseModel):
     position: List[float]
     orientation: List[float]
     look_at: List[float]
-
-
-class SimulationSettings(BaseModel):
-    max_depth: int
-    num_samples: float
 
 
 class RenderingSettings(BaseModel):
@@ -83,6 +45,11 @@ class VegetationSettings(BaseModel):
     mode: Literal["per_link", "per_path"] = "per_link"
 
 
+class ShadowingSettings(BaseModel):
+    enabled: bool = True
+    sigma_db: float = 6.0
+
+
 class Geo2SigmapSettings(BaseModel):
     min_lon: float
     min_lat: float
@@ -92,13 +59,12 @@ class Geo2SigmapSettings(BaseModel):
 
 class SionnartSettings(BaseModel):
     scene_name: str
-    transmitter: TransmitterSettings
     camera: CameraSettings
-    simulation: SimulationSettings = Field(..., alias="paths_simulation")
     rendering: RenderingSettings
     coverage: CoverageSettings
     vegetation: Optional[VegetationSettings] = None
     diffuse_scattering: Optional[DiffuseScatteringSettings] = None
+    shadowing: Optional[ShadowingSettings] = None
 
 
 class LoggingSettings(BaseModel):
@@ -107,7 +73,6 @@ class LoggingSettings(BaseModel):
 
 class Settings(BaseModel):
     logging: LoggingSettings
-    mqtt: MQTTSettings
     sionnart: SionnartSettings
     geo2sigmap: Geo2SigmapSettings
 

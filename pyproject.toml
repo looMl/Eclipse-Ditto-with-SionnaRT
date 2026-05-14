@@ -14,7 +14,6 @@ dependencies = [
     "sionna-rt==1.2.1",
     "tensorflow==2.19.0",
     "matplotlib==3.10.7",
-    "paho-mqtt",
     "numpy",
     "loguru",
     "PyYAML",

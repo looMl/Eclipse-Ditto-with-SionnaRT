@@ -11,8 +11,8 @@ from sionna.rt.renderer import (
 )
 
 from app.config import settings, get_project_root
-from app.simulation.visual_builder import VisualSceneBuilder
-from app.simulation.shading_utils import prepare_gouraud_shading_for_radio_map
+from app.simulation.rendering.visual_builder import VisualSceneBuilder
+from app.simulation.rendering.shading_utils import prepare_gouraud_shading_for_radio_map
 
 
 class SimulationRenderer:
