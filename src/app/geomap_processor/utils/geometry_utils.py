@@ -69,6 +69,6 @@ class BoundingBox:
 class MaterialConfig:
     """Configuration for material indices."""
 
-    ground_idx: int = 13  # Default: medium dry ground
+    ground_idx: int = 1  # Default: concrete
     rooftop_idx: int = 2  # Default: brick
     wall_idx: int = 1  # Default: concrete
