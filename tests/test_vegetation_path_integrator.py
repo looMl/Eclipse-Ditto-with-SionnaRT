@@ -19,8 +19,8 @@ from app.simulation.vegetation.vegetation_path_integrator import (
 
 _ORIGIN_LON = 11.0
 _ORIGIN_LAT = 45.0
-_CELL_M = 1.0   # 1 m/cell → precise depth assertions
-_GRID = 400     # 400×400 → scene covers ±200 m in both axes
+_CELL_M = 1.0  # 1 m/cell → precise depth assertions
+_GRID = 400  # 400×400 → scene covers ±200 m in both axes
 
 
 # --------------------------------------------------------------------------- #
@@ -36,7 +36,9 @@ def _make_field(tcd: np.ndarray, chm: np.ndarray) -> VegetationField:
     utm_ox, utm_oy = ox[0], oy[0]
     H, W = tcd.shape
     # Raster centred on (utm_ox, utm_oy): local (0,0) maps to centre pixel
-    transform = Affine(_CELL_M, 0, utm_ox - W / 2 * _CELL_M, 0, -_CELL_M, utm_oy + H / 2 * _CELL_M)
+    transform = Affine(
+        _CELL_M, 0, utm_ox - W / 2 * _CELL_M, 0, -_CELL_M, utm_oy + H / 2 * _CELL_M
+    )
     return VegetationField(
         tcd=tcd,
         chm=chm,
@@ -145,7 +147,7 @@ def test_dem_ray_above_canopy_returns_zero():
     # flat DEM at z=0 → canopy top = 0 + 5 = 5 m
     integrator = PathDepthIntegrator(field, dem=_flat_dem(), step_m=_CELL_M)
 
-    tx = np.array([0.0, 0.0, 10.0], dtype="float32")   # ray at z=10 m
+    tx = np.array([0.0, 0.0, 10.0], dtype="float32")  # ray at z=10 m
     rx = np.array([[50.0, 0.0, 10.0]], dtype="float32")
     depth = integrator.integrate(tx, rx)
     assert depth[0] == pytest.approx(0.0)
@@ -163,7 +165,7 @@ def test_dem_ray_below_canopy_returns_full_depth():
     # flat DEM at z=0 → canopy top = 0 + 20 = 20 m
     integrator = PathDepthIntegrator(field, dem=_flat_dem(), step_m=_CELL_M)
 
-    tx = np.array([-50.0, 0.0, 2.0], dtype="float32")   # ray at z=2 m, below 20 m canopy
-    rx = np.array([[50.0, 0.0, 2.0]], dtype="float32")   # 100 m path
+    tx = np.array([-50.0, 0.0, 2.0], dtype="float32")  # ray at z=2 m, below 20 m canopy
+    rx = np.array([[50.0, 0.0, 2.0]], dtype="float32")  # 100 m path
     depth = integrator.integrate(tx, rx)
     assert depth[0] == pytest.approx(100.0, abs=1.0)

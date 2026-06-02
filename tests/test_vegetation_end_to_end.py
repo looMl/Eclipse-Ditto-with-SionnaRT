@@ -36,12 +36,20 @@ def _make_field(tcd: np.ndarray, chm: np.ndarray) -> VegetationField:
     utm_ox, utm_oy = ox[0], oy[0]
     H, W = tcd.shape
     transform = Affine(
-        _CELL_M, 0, utm_ox - W / 2 * _CELL_M,
-        0, -_CELL_M, utm_oy + H / 2 * _CELL_M,
+        _CELL_M,
+        0,
+        utm_ox - W / 2 * _CELL_M,
+        0,
+        -_CELL_M,
+        utm_oy + H / 2 * _CELL_M,
     )
     return VegetationField(
-        tcd=tcd, chm=chm, transform=transform, crs=utm_crs,
-        origin_lon=_ORIGIN_LON, origin_lat=_ORIGIN_LAT,
+        tcd=tcd,
+        chm=chm,
+        transform=transform,
+        crs=utm_crs,
+        origin_lon=_ORIGIN_LON,
+        origin_lat=_ORIGIN_LAT,
     )
 
 
@@ -127,7 +135,7 @@ def test_attenuation_increases_with_path_length():
     integrator = PathDepthIntegrator(field, step_m=_CELL_M)
 
     tx = np.array([-100.0, 0.0, 5.0], dtype="float32")
-    rx_short = np.array([[0.0, 0.0, 5.0]], dtype="float32")   # 100 m
+    rx_short = np.array([[0.0, 0.0, 5.0]], dtype="float32")  # 100 m
     rx_long = np.array([[100.0, 0.0, 5.0]], dtype="float32")  # 200 m
 
     depth_short = integrator.integrate(tx, rx_short)[0]
