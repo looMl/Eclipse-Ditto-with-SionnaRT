@@ -13,18 +13,32 @@ classifiers = [
 dependencies = [
     "sionna-rt==1.2.1",
     "tensorflow==2.19.0",
-    "tensorflow-io-gcs-filesystem<=0.31; sys_platform == 'win32'",
     "matplotlib==3.10.7",
-    "paho-mqtt",
     "numpy",
     "loguru",
     "PyYAML",
     "pydantic==2.12.4",
     "scene_generation",
+    "rasterio",
+    "requests",
+    "shapely",
+    "osmnx",
+    "geopandas",
+    "tqdm",
 ]
 
-[tool.uv]
-dev-dependencies = []
+[project.optional-dependencies]
+worldcover_ndvi = [
+    "pystac-client",
+    "planetary-computer",
+]
+
+[dependency-groups]
+dev = ["ruff", "pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.uv.sources]
 scene_generation = { git = "https://github.com/functions-lab/geo2sigmap.git", subdirectory = "package" }

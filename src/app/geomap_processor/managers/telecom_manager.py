@@ -1,12 +1,11 @@
 import json
 import random
-from typing import List, Tuple, Optional, Callable, Any
+from typing import List, Tuple, Any
 from dataclasses import dataclass
 from pathlib import Path
 from loguru import logger
 
 import osmnx as ox
-import trimesh
 from shapely.geometry import Point
 import geopandas as gpd
 
@@ -35,9 +34,7 @@ class TelecomManager:
     Manages fetching and processing of telecom infrastructure data.
     """
 
-    DEFAULT_HEIGHT = 150.0
-    CYLINDER_RADIUS = 2
-    CYLINDER_SECTIONS = 16
+    DEFAULT_HEIGHT = 30.0
 
     def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
@@ -102,8 +99,8 @@ class TelecomManager:
             lon, lat = self._get_geometry_center(geom_orig)
 
             # Populate Transmitter Data
-            tx = self._create_transmitter(idx, lat, lon, x - cx, y - cy)
-            self.transmitters.append(tx)
+            tx_list = self._create_site_transmitters(idx, lat, lon, x - cx, y - cy)
+            self.transmitters.extend(tx_list)
 
     def _get_geometry_center(self, geom: Any) -> Tuple[float, float]:
         """Extracts (x, y) from a Point or (centroid.x, centroid.y) from other geometries."""
@@ -111,96 +108,94 @@ class TelecomManager:
             return geom.x, geom.y
         return geom.centroid.x, geom.centroid.y
 
-    def _create_transmitter(
+    def _create_site_transmitters(
         self, idx: Any, lat: float, lon: float, local_x: float, local_y: float
-    ) -> Transmitter:
-        """Creates a Transmitter object with synthetic simulation data."""
+    ) -> List[Transmitter]:
+        """Creates 3 Transmitters (sectors) for a single cell site."""
 
         # Clean up ID if it comes as a tuple (e.g. ('node', 12345))
         if isinstance(idx, tuple) and len(idx) > 1:
-            tx_id = str(idx[1])
+            site_id = str(idx[1])
         else:
-            tx_id = str(idx)
+            site_id = str(idx)
 
-        return Transmitter(
-            id=tx_id,
-            lat=lat,
-            lon=lon,
-            height=self.DEFAULT_HEIGHT,
-            local_x=local_x,
-            local_y=local_y,
-            model="Generic 5G Tower",
-            type="Macro",
-            power_dbm=random.uniform(43.0, 46.0),
-            tilt=random.uniform(2, 6),
-            azimuth=random.uniform(0, 360),
-            frequency=3.5e9,
-            active_users=random.randint(0, 100),
-        )
+        # Base orientation for the whole site so not all towers point True North
+        base_azimuth = random.uniform(0, 119)
+        sectors = []
 
-    def get_mesh(
-        self, height_callback: Optional[Callable[[float, float], float]] = None
-    ) -> Optional[trimesh.Trimesh]:
-        """Returns a combined mesh of all items, optionally adjusted to terrain height."""
-        if not self.transmitters:
-            return None
-
-        meshes = []
-        for tx in self.transmitters:
-            c = trimesh.creation.cylinder(
-                radius=self.CYLINDER_RADIUS,
-                height=tx.height,
-                sections=self.CYLINDER_SECTIONS,
+        for sector_idx in range(3):
+            azimuth = (base_azimuth + (sector_idx * 120)) % 360
+            tx = Transmitter(
+                id=f"{site_id}_s{sector_idx}",
+                lat=lat,
+                lon=lon,
+                height=self.DEFAULT_HEIGHT,
+                local_x=local_x,
+                local_y=local_y,
+                model="Generic 5G Sector",
+                type="Macro",
+                power_dbm=random.uniform(43.0, 46.0),
+                tilt=random.uniform(2, 6),
+                azimuth=azimuth,
+                frequency=1.8e9,
+                active_users=random.randint(0, 33),  # Divided by roughly 3 from old max
             )
+            sectors.append(tx)
 
-            z_ground = 0.0
-            if height_callback:
-                z_ground = height_callback(tx.local_x, tx.local_y)
-
-            c.apply_translation([tx.local_x, tx.local_y, tx.height / 2.0 + z_ground])
-            meshes.append(c)
-
-        return trimesh.util.concatenate(meshes)
+        return sectors
 
     def save_transmitters_json(self, output_path: Path) -> None:
-        """Exports the transmitters to an Eclipse Ditto formatted JSON."""
-        ditto_items = []
+        """Exports transmitters to Eclipse Ditto JSON — one Thing per antenna site.
 
+        Each site's 3 sectors are nested as features (sector_0, sector_1, sector_2)
+        so a single API call provisions the full antenna instead of 3 separate Things.
+        """
+        # Group the flat sector list back into sites keyed by site_id
+        sites: dict[str, list[Transmitter]] = {}
         for tx in self.transmitters:
-            item = {
-                "thingId": f"com.sionna:{tx.id}",
-                "attributes": {
-                    "location": {
-                        "latitude": tx.lat,
-                        "longitude": tx.lon,
-                        "height_m": tx.height,
+            site_id = tx.id.rsplit("_s", 1)[0]
+            sites.setdefault(site_id, []).append(tx)
+
+        ditto_items = []
+        for site_id, sectors in sites.items():
+            ref = sectors[0]  # shared location/physical attributes
+            features = {}
+            for tx in sectors:
+                sector_idx = tx.id.rsplit("_s", 1)[1]
+                features[f"sector_{sector_idx}"] = {
+                    "properties": {
+                        "transmit_power_dbm": tx.power_dbm,
+                        "mechanical_tilt": round(tx.tilt, 2),
+                        "azimuth_deg": round(tx.azimuth, 2),
+                        "carrier_frequency_hz": tx.frequency,
+                        "admin_state": "enabled",
+                        "operational_state": "up",
+                        "active_users": tx.active_users,
+                    }
+                }
+
+            ditto_items.append(
+                {
+                    "thingId": f"com.sionna:antenna_{site_id}",
+                    "attributes": {
+                        "location": {
+                            "latitude": ref.lat,
+                            "longitude": ref.lon,
+                            "height_m": ref.height,
+                        },
+                        "physical": {"model": ref.model, "type": ref.type},
                     },
-                    "physical": {"model": tx.model, "type": tx.type},
-                },
-                "features": {
-                    "configuration": {
-                        "properties": {
-                            "transmit_power_dbm": tx.power_dbm,
-                            "mechanical_tilt": round(tx.tilt, 2),
-                            "azimuth_deg": round(tx.azimuth, 2),
-                            "carrier_frequency_hz": tx.frequency,
-                            "admin_state": "enabled",
-                        }
-                    },
-                    "status": {
-                        "properties": {
-                            "operational_state": "up",
-                            "active_users": tx.active_users,
-                        }
-                    },
-                },
-            }
-            ditto_items.append(item)
+                    "features": features,
+                }
+            )
 
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "w") as f:
                 json.dump(ditto_items, f, indent=2)
-            logger.info(f"Exported {len(ditto_items)} transmitters to {output_path}")
+            logger.info(
+                f"Exported {len(ditto_items)} antenna Things "
+                f"({len(self.transmitters)} sectors) to {output_path}"
+            )
         except Exception as e:
             logger.error(f"Failed to export transmitters JSON: {e}")

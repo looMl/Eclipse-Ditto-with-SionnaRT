@@ -1,4 +1,3 @@
-from loguru import logger
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 from scene_generation.itu_materials import ITU_MATERIALS
@@ -8,12 +7,13 @@ _MATERIALS_LIST = list(ITU_MATERIALS.items())
 
 
 def resolve_material(idx: int) -> str:
-    """Resolves material index to name safely."""
-    try:
-        return _MATERIALS_LIST[idx][0]
-    except IndexError:
-        logger.warning(f"Invalid material index {idx}. Using default.")
-        return _MATERIALS_LIST[0][0]
+    """Resolves a material index to its ITU material key."""
+    if not 0 <= idx < len(_MATERIALS_LIST):
+        raise ValueError(
+            f"Invalid material index {idx}: must be in 0..{len(_MATERIALS_LIST) - 1}. "
+            "See the ITU material table in the README."
+        )
+    return _MATERIALS_LIST[idx][0]
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,6 @@ class BoundingBox:
 class MaterialConfig:
     """Configuration for material indices."""
 
-    ground_idx: int = 14  # Default: wet ground
+    ground_idx: int = 1  # Default: concrete
     rooftop_idx: int = 2  # Default: brick
     wall_idx: int = 1  # Default: concrete

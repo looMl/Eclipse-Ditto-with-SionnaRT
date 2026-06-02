@@ -2,46 +2,68 @@
 logging:
   level: "INFO"
 
-mqtt:
-  broker_host: "localhost"
-  broker_port: 1883
-  keepalive: 60
- 
-  publisher:
-    client_id_prefix: "publish-"
-    thing_id: "org.povo:phone"
-    base_topic: "devices/in"
-    publish_interval_seconds: 25
-    num_messages: 5 # 0 = Infinite loop
-    initial_translation: -30.0
-    translation_increment: 10.0
-
-  worker:
-    client_id_prefix: "sionna-worker-"
-    base_topic: "devices/out"
-
 sionnart:
   scene_name: "scene.xml"
 
-  transmitter:
-    position: [-39, -15, 4]
-
   camera:
-    position: [22, 47, 110]
+    position: [1000, -800, 600]
     orientation: [0, 0, 0]
-    look_at: [-18, 0, -8]
+    look_at: [-950, -200, -300]
   
-  paths_simulation:
-    max_depth: 5  # Controls reflection/diffraction depth. Higher = more realistic but significantly slower.
-    num_samples: 1e6  # Number of rays cast from Transmitter. Higher = better chance of finding paths, more accurate results, but slower.
-    
   rendering:
-    resolution: [480, 320]
+    resolution: [1920, 1080]
     num_samples: 512  # Rendering parameters - adjust for quality vs. speed trade-off.
     show_devices: True
 
+  coverage:
+    samples_per_tx: 10000000   # 1e7 Keep samples_per_tx × num_tx ≤ 4,294,967,295 (uint32 limit)
+    max_depth: 8  # Maximum number of ray scene interactions
+    max_num_paths_per_src: 200000  # PathSolver path buffer size per TX — 200k fits 16 GB VRAM at depth=8 with diffuse
+    metric: "rss"  # Options: "rss" (received signal strength), "sinr" (signal-to-interference-plus-noise ratio), "path_gain"
+    vmin: -140.0
+    vmax: -40.0
+
+  diffuse_scattering:
+    enabled: true
+    scattering_coefficient: 0.25  # ν: fraction of reflected energy scattered diffusely
+
+  handset:
+    body_loss_db: 3.0  # ITU-T P.1238 hand-held phone body-shadowing loss (dB)
+
+  shadowing:
+    enabled: true
+    sigma_db: 6.0  # log-normal shadow fading std-dev (dB); urban macro typical 4-8 dB
+
+  vegetation:
+    enabled: true
+    mode: "per_path"            # "per_link" (single TX→RX line) or "per_path" (integrate per reflected ray)
+    frequency_hz: 1.8e9         # Carrier frequency in Hz (must be <= 7.125 GHz)
+    leaf_state: "in_leaf"       # "in_leaf" or "out_of_leaf"
+    tcd_source: "esa_worldcover"    # Options: "esa_worldcover", "worldcover+ndvi", "copernicus_hrl"
+    chm_source: "heuristic"          # Options: "heuristic" (eth_global_2020 hosting is dead, GEE option is valid but requires auth key)
+    raster_step_m: 1.0              # LOS sampling step in metres (auto-capped to cell_size/2)
+    heuristic_heights:              # Fallback canopy heights (m) when CHM raster is absent
+      forest: 18.0
+      wood: 18.0
+      tree: 12.0
+      orchard: 8.0
+      vineyard: 4.0
+      park: 12.0
+      garden: 8.0
+      golf_course: 4.0
+      tree_row: 8.0
+      scrub: 4.0
+      heath: 2.0
+      meadow: 0.0
+      grass: 0.0
+
 geo2sigmap:
-  min_lon: 11.109066
-  min_lat: 46.055603
-  max_lon: 11.135674
-  max_lat: 46.080375
+  min_lon: 10.983152
+  min_lat: 45.435924
+  max_lon: 11.009159
+  max_lat: 45.454140
+
+  materials:                # ITU material indices (see README "Changing building materials")
+    ground_idx: 1           # Concrete
+    rooftop_idx: 2          # Brick
+    wall_idx: 1             # Concrete

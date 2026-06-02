@@ -1,92 +1,125 @@
+import json
+import pyproj
+import numpy as np
+import sionna.rt
 from loguru import logger
-from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
-from app.config import get_project_root, Settings
+from app.config import settings, get_project_root
+from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 
 
 class SceneManager:
-    # Antenna Configuration
-    TX_ROWS = 4
-    TX_COLS = 4
-    RX_ROWS = 1
-    RX_COLS = 1
-    SPACING = 0.5
-    FREQUENCY = 2.14e9
+    """
+    Handles scene loading, patching, and asset management.
+    """
 
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        self.scene = self._load_scene()
-        self.camera = self._setup_camera()
-        self.tx = None
-
-        self._configure_antenna_arrays()
-        self._setup_transmitter()
-
-    def _load_scene(self):
-        scene_filename = self.settings.sionnart.scene_name
-        filepath = get_project_root() / "scene" / scene_filename
-        try:
-            logger.info(f"Loading scene from: {filepath}")
-            return load_scene(str(filepath))
-        except FileNotFoundError:
-            logger.critical(
-                f"Scene file not found at '{filepath}'. Cannot initialize simulator."
-            )
-            raise
-
-    def _setup_camera(self) -> Camera:
-        try:
-            camera = Camera(
-                position=self.settings.sionnart.camera.position,
-                look_at=self.settings.sionnart.camera.look_at,
-            )
-            logger.info("Camera object created successfully.")
-            return camera
-        except Exception as e:
-            logger.error(f"Failed to initialize Camera: {e}", exc_info=True)
-            raise
-
-    def _configure_antenna_arrays(self):
-        logger.info("Configuring TX/RX antenna arrays.")
-
-        self.scene.tx_array = PlanarArray(
-            num_rows=self.TX_ROWS,
-            num_cols=self.TX_COLS,
-            vertical_spacing=self.SPACING,
-            horizontal_spacing=self.SPACING,
-            pattern="tr38901",
-            polarization="V",
+    def __init__(self):
+        self.scene_dir = get_project_root() / "scene"
+        self.scene_path = self.scene_dir / settings.sionnart.scene_name
+        self.transmitters_json = (
+            get_project_root() / "ditto" / "things" / "transmitters.json"
         )
 
-        self.scene.rx_array = PlanarArray(
-            num_rows=self.RX_ROWS,
-            num_cols=self.RX_COLS,
-            vertical_spacing=self.SPACING,
-            horizontal_spacing=self.SPACING,
-            pattern="dipole",
-            polarization="cross",
+    def load_scene(self) -> sionna.rt.Scene:
+        """Loads and prepares the SionnaRT scene."""
+        if not self.scene_path.exists():
+            raise FileNotFoundError(f"Scene file not found: {self.scene_path}")
+
+        logger.info(f"Loading scene: {self.scene_path}")
+        scene = sionna.rt.load_scene(str(self.scene_path))
+
+        self._patch_visual_colors(scene)
+        self._apply_scattering(scene)
+        self._load_transmitters(scene)
+
+        return scene
+
+    def get_transformer(self):
+        """Returns the transformer and origin offset for coordinate conversion."""
+        updater = SceneXMLUpdater(self.scene_path)
+        proj_info = updater.get_projection_info()
+
+        transformer = pyproj.Transformer.from_crs(
+            "EPSG:4326", proj_info["utm_zone"], always_xy=True
         )
-        logger.info("Antenna arrays configured.")
+        ox, oy = transformer.transform(proj_info["center_lon"], proj_info["center_lat"])
+        return transformer, (ox, oy)
 
-    def _setup_transmitter(self):
-        pos = self.settings.sionnart.transmitter.position
-        logger.info(f"Added TX at {pos}.")
-        self.tx = Transmitter("tx", pos)
-        self.scene.add(self.tx)
+    def _apply_scattering(self, scene: sionna.rt.Scene):
+        ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+        if ds_cfg is None or not getattr(ds_cfg, "enabled", False):
+            return
+        nu = float(getattr(ds_cfg, "scattering_coefficient", 0.25))
+        for mat in scene.radio_materials.values():
+            mat.scattering_coefficient = nu
+        logger.info(
+            f"Applied diffuse scattering coefficient v={nu} to {len(scene.radio_materials)} materials."
+        )
 
-        # Set frequency and synthetic array mode
-        self.scene.frequency = self.FREQUENCY
-        self.scene.synthetic_array = True
+    def _patch_visual_colors(self, scene: sionna.rt.Scene):
+        """Restores visual colors from XML to the loaded Sionna materials."""
+        updater = SceneXMLUpdater(self.scene_path)
+        xml_colors = updater.get_material_colors()
 
-        freq_ghz = (self.scene.frequency / 1e9).numpy().item()
-        logger.info(f"Scene frequency set to {freq_ghz:.2f} GHz.")
+        for mat in scene.radio_materials.values():
+            if mat.id() in xml_colors:
+                mat.color = xml_colors[mat.id()]
 
-    def add_receiver(self, position: list, orientation: list) -> Receiver:
-        logger.debug(f"Adding RX at {position} with orientation {orientation}.")
-        rx = Receiver("rx", position, orientation)
-        self.scene.add(rx)
-        self.tx.look_at(rx)
-        return rx
+    def _load_transmitters(self, scene: sionna.rt.Scene):
+        """Loads transmitters from json file and positions them in the scene.
 
-    def remove_receiver(self, name: str = "rx"):
-        self.scene.remove(name)
-        logger.debug(f"Receiver '{name}' removed from the scene.")
+        Each JSON item represents one antenna site with sector_N features.
+        One Sionna transmitter is created per sector so the simulation uses
+        all 3 cells per site.
+        """
+        if not self.transmitters_json.exists():
+            logger.warning("Transmitters registry not found.")
+            return
+
+        transformer, (ox, oy) = self.get_transformer()
+
+        with open(self.transmitters_json, "r") as f:
+            data = json.load(f)
+
+        # Standard 4G/5G Sub-6 GHz Sector Antenna (e.g., 2T2R configuration)
+        if scene.tx_array is None:
+            scene.tx_array = sionna.rt.PlanarArray(
+                num_rows=4,
+                num_cols=1,
+                vertical_spacing=0.5,
+                horizontal_spacing=0.5,
+                pattern="tr38901",
+                polarization="VH",
+            )
+
+        tx_count = 0
+        for item in data:
+            loc = item.get("attributes", {}).get("location", {})
+            height = float(loc.get("height_m", 30.0))
+            px, py = transformer.transform(loc["longitude"], loc["latitude"])
+            base_name = str(item["thingId"]).replace(".", "_").replace(":", "_")
+
+            for sector_key, sector_data in item.get("features", {}).items():
+                if not sector_key.startswith("sector_"):
+                    continue
+                props = sector_data.get("properties", {})
+                azimuth = float(props.get("azimuth_deg", 0.0))
+                mechanical_tilt = float(props.get("mechanical_tilt", 0.0))
+                electrical_tilt = float(props.get("electrical_tilt_deg", 0.0))
+                tilt = -(mechanical_tilt + electrical_tilt)
+
+                tx = sionna.rt.Transmitter(
+                    name=f"{base_name}__{sector_key}",
+                    position=[px - ox, py - oy, height],
+                    orientation=[
+                        (90.0 - azimuth) * np.pi / 180.0,  # Yaw
+                        tilt * np.pi / 180.0,  # Pitch
+                        0.0,
+                    ],
+                    power_dbm=float(props.get("transmit_power_dbm", 40.0)),
+                )
+                tx.display_radius = 15.0
+                tx.color = (1.0, 0.0, 0.0)
+                scene.add(tx)
+                tx_count += 1
+
+        logger.info(f"Loaded {tx_count} transmitters from {len(data)} antenna sites.")

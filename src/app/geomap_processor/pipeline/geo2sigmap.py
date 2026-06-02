@@ -1,3 +1,4 @@
+import argparse
 from typing import Tuple, Optional, Any, Callable
 from pathlib import Path
 from loguru import logger
@@ -6,6 +7,10 @@ from scene_generation.core import Scene
 from app.config import settings, get_project_root
 from app.geomap_processor.managers.telecom_manager import TelecomManager
 from app.geomap_processor.managers.building_manager import BuildingMesher
+from app.geomap_processor.managers.vegetation_manager import VegetationManager
+from app.geomap_processor.data.vegetation_raster_downloader import (
+    VegetationRasterDownloader,
+)
 from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 from app.geomap_processor.data.dem_downloader import DemDownloader
 from app.geomap_processor.processors.dem_processor import DemProcessor
@@ -14,6 +19,7 @@ from app.geomap_processor.utils.geometry_utils import (
     MaterialConfig,
     resolve_material,
 )
+from rasterio.crs import CRS
 from app.services.ditto_manager import DittoManager
 
 
@@ -32,7 +38,9 @@ class SceneBuilder:
                     f"Could not create output directory '{self._output_dir}': {e}"
                 )
 
-    def generate(self, bbox: BoundingBox, materials: MaterialConfig) -> None:
+    def generate(
+        self, bbox: BoundingBox, materials: MaterialConfig, enable_ditto: bool = False
+    ) -> None:
         """Orchestrates the scene generation process."""
         self._ensure_output_directory()
         bbox.validate()
@@ -50,13 +58,15 @@ class SceneBuilder:
             # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
 
+            self._process_vegetation(bbox)
+
             # Define height callback for adjusting buildings meshes
             height_callback = self._create_height_callback(
                 elev_data, transform, ref_elev, *bbox.center
             )
 
             self._optimize_buildings(height_callback)
-            self._process_telecom_infrastructure(bbox, height_callback)
+            self._process_telecom_infrastructure(bbox, height_callback, enable_ditto)
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
@@ -108,6 +118,42 @@ class SceneBuilder:
             )
 
         return _cb
+
+    def _process_vegetation(self, bbox: BoundingBox) -> None:
+        """
+        Downloads TCD/CHM rasters, burns the OSM polygon mask, and writes
+        mesh/vegetation_field.npz for the simulation layer to consume.
+        """
+        veg_cfg = getattr(settings.sionnart, "vegetation", None)
+        if veg_cfg is None:
+            logger.info("No vegetation config found; skipping vegetation processing.")
+            return
+        if not getattr(veg_cfg, "enabled", True):
+            logger.info("Vegetation processing disabled in config.")
+            return
+
+        center_lon, center_lat = bbox.center
+        bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
+        target_crs = CRS.from_string(DemProcessor._get_utm_crs(center_lon, center_lat))
+
+        tcd_source = getattr(veg_cfg, "tcd_source", "esa_worldcover")
+        chm_source = getattr(veg_cfg, "chm_source", "eth_global_2020")
+
+        downloader = VegetationRasterDownloader(get_project_root() / "geotiffs")
+        tcd_path, chm_path = downloader.fetch(
+            bbox_tuple, tcd_source, chm_source, target_crs
+        )
+
+        if tcd_path is None:
+            logger.warning("TCD raster unavailable; skipping vegetation field.")
+            return
+
+        field = VegetationManager(bbox).build_density_field(tcd_path, chm_path)
+
+        npz_path = self._output_dir / "mesh" / "vegetation_field.npz"
+        npz_path.parent.mkdir(parents=True, exist_ok=True)
+        field.save(npz_path)
+        logger.success(f"Vegetation field saved: {npz_path}")
 
     def _optimize_buildings(
         self, height_callback: Optional[Callable[[float, float], float]]
@@ -164,6 +210,7 @@ class SceneBuilder:
         self,
         bbox: BoundingBox,
         height_callback: Optional[Callable[[float, float], float]],
+        enable_ditto: bool = False,
     ) -> None:
         """
         Fetches and processes telecom data, exporting the mesh and updating scene.xml.
@@ -172,33 +219,16 @@ class SceneBuilder:
         telecom_mgr = TelecomManager(bbox=bbox)
         telecom_mgr.fetch_and_process()
 
-        # Export transmitters to JSON for Eclipse Ditto
+        # Export transmitters to JSON (one antenna Thing per site, 3 sector features each)
         json_path = get_project_root() / "ditto" / "things" / "transmitters.json"
         telecom_mgr.save_transmitters_json(json_path)
 
-        # Provision things in Eclipse Ditto
-        DittoManager().provision_simulation(json_path)
-
-        mesh = telecom_mgr.get_mesh(height_callback)
-        if mesh:
-            mesh_dir = self._output_dir / "mesh"
-            mesh_dir.mkdir(parents=True, exist_ok=True)
-
-            ply_path = mesh_dir / "transmitters.ply"
-            mesh.export(str(ply_path))
-            logger.info(f"Exported mesh to {ply_path}")
-
-            scene_path = self._output_dir / "scene.xml"
-            updater = SceneXMLUpdater(scene_path)
-
-            # Using standard ITU metal for transmitters
-            updater.add_mesh_shape(
-                "mesh/transmitters.ply", "mesh-transmitters", "mat-itu_metal"
-            )
-            updater.save()
-            logger.info("Telecom Infrastructure added to scene.")
+        if enable_ditto:
+            DittoManager().provision_simulation(json_path)
         else:
-            logger.info("No telecom infrastructure found or mesh generation failed.")
+            logger.info("Ditto provisioning skipped (pass --ditto to enable).")
+
+        logger.info("Telecom Infrastructure data processed.")
 
     def _process_terrain(self, bbox: BoundingBox) -> Tuple[Any, Any, float]:
         """Generates terrain mesh from DEM and updates the scene."""
@@ -251,6 +281,16 @@ class SceneBuilder:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Generate a 3D scene from geospatial data."
+    )
+    parser.add_argument(
+        "--ditto",
+        action="store_true",
+        help="Provision antenna Things on Eclipse Ditto after scene generation.",
+    )
+    args = parser.parse_args()
+
     try:
         bbox = BoundingBox(
             min_lon=settings.geo2sigmap.min_lon,
@@ -259,12 +299,15 @@ def main():
             max_lat=settings.geo2sigmap.max_lat,
         )
 
-        material_config = MaterialConfig()
+        material_config = MaterialConfig(
+            ground_idx=settings.geo2sigmap.materials.ground_idx,
+            rooftop_idx=settings.geo2sigmap.materials.rooftop_idx,
+            wall_idx=settings.geo2sigmap.materials.wall_idx,
+        )
         output_dir = get_project_root() / "scene"
 
         builder = SceneBuilder(output_dir=output_dir)
-
-        builder.generate(bbox, material_config)
+        builder.generate(bbox, material_config, enable_ditto=args.ditto)
 
     except Exception as e:
         logger.critical(f"Application failed: {e}")

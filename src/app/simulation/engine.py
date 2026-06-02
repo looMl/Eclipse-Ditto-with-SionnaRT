@@ -1,50 +1,32 @@
-from sionna.rt import PathSolver
+import mitsuba as mi
 from loguru import logger
-from app.simulation.scene_manager import SceneManager
-from app.simulation.renderer import SimulationRenderer
-from app.config import Settings
+from sionna.rt.radio_materials import ITURadioMaterial, RadioMaterial
 
 
-class SionnaRTEngine:
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        self.scene_manager = SceneManager(settings)
-        self.renderer = SimulationRenderer(settings)
-        self.solver = PathSolver()
+class SimulationEngine:
+    """
+    Manages the core SionnaRT/Mitsuba engine variant initialization.
+    """
 
-    def run_simulation(self, rx_position: list, rx_orientation: list):
-        """
-        Runs a single simulation for a given receiver position and orientation.
-        """
-        # 1. Setup Scene
-        self.scene_manager.add_receiver(rx_position, rx_orientation)
-
+    @staticmethod
+    def initialize(variant: str = "cuda_ad_mono_polarized"):
         try:
-            # 2. Compute Paths
-            paths = self._compute_paths()
-
-            # 3. Render
-            self.renderer.render(
-                self.scene_manager.scene, self.scene_manager.camera, paths
-            )
-        finally:
-            # 4. Cleanup
-            self.scene_manager.remove_receiver("rx")
-
-    def _compute_paths(self):
-        try:
-            sim_settings = self.settings.sionnart.simulation
-            logger.info(
-                f"Computing paths with max_depth={sim_settings.max_depth}, "
-                f"num_samples={sim_settings.num_samples:.1e}..."
-            )
-            paths = self.solver(
-                self.scene_manager.scene,
-                max_depth=sim_settings.max_depth,
-                samples_per_src=int(sim_settings.num_samples),
-            )
-            logger.info("Path computation finished.")
-            return paths
+            logger.debug(f"Initializing Simulation Engine with variant: {variant}")
+            mi.set_variant(variant)
+            SimulationEngine._register_plugins()
         except Exception as e:
-            logger.error(f"Critical error during path computation: {e}", exc_info=True)
+            logger.error(f"Failed to initialize Simulation Engine: {e}")
             raise
+
+    @staticmethod
+    def _register_plugins():
+        """Registers custom SionnaRT BSDF plugins for the current variant."""
+        plugins = {
+            "itu-radio-material": ITURadioMaterial,
+            "radio-material": RadioMaterial,
+        }
+        for name, cls in plugins.items():
+            try:
+                mi.register_bsdf(name, lambda props, c=cls: c(props=props))
+            except Exception as e:
+                logger.debug(f"Plugin '{name}' registration: {e}")
