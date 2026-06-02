@@ -299,7 +299,11 @@ def main():
             max_lat=settings.geo2sigmap.max_lat,
         )
 
-        material_config = MaterialConfig()
+        material_config = MaterialConfig(
+            ground_idx=settings.geo2sigmap.materials.ground_idx,
+            rooftop_idx=settings.geo2sigmap.materials.rooftop_idx,
+            wall_idx=settings.geo2sigmap.materials.wall_idx,
+        )
         output_dir = get_project_root() / "scene"
 
         builder = SceneBuilder(output_dir=output_dir)

@@ -50,11 +50,18 @@ class ShadowingSettings(BaseModel):
     sigma_db: float = 6.0
 
 
+class MaterialSettings(BaseModel):
+    ground_idx: int = Field(1, ge=0)
+    rooftop_idx: int = Field(2, ge=0)
+    wall_idx: int = Field(1, ge=0)
+
+
 class Geo2SigmapSettings(BaseModel):
     min_lon: float
     min_lat: float
     max_lon: float
     max_lat: float
+    materials: MaterialSettings = Field(default_factory=MaterialSettings)
 
 
 class SionnartSettings(BaseModel):
