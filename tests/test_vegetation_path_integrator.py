@@ -11,7 +11,10 @@ from rasterio.transform import Affine
 
 from app.geomap_processor.processors.dem_processor import DemProcessor
 from app.geomap_processor.utils.vegetation_field import VegetationField
-from app.simulation.vegetation_path_integrator import DemSampler, PathDepthIntegrator
+from app.simulation.vegetation.vegetation_path_integrator import (
+    DemSampler,
+    PathDepthIntegrator,
+)
 
 
 _ORIGIN_LON = 11.0

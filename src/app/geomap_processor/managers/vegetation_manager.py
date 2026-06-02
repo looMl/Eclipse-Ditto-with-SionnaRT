@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 import osmnx as ox
@@ -170,8 +170,13 @@ class VegetationManager:
             dtype="float32",
         )
 
-    def _build_osm_tcd(self, gdf: gpd.GeoDataFrame, reference_path: Path) -> np.ndarray:
-        """Rasterizes OSM features with per-tag TCD fractions onto the TCD grid.
+    def _rasterize_osm_values(
+        self,
+        gdf: gpd.GeoDataFrame,
+        reference_path: Path,
+        value_fn: Callable[[Any], float],
+    ) -> np.ndarray:
+        """Rasterizes OSM features onto the reference grid using value_fn per feature.
 
         Points (natural=tree) are buffered to 5 m circles; LineStrings (tree_row)
         to 3 m strips so individual and aligned urban trees register on the raster.
@@ -191,7 +196,7 @@ class VegetationManager:
             geom = row.geometry
             if geom is None:
                 continue
-            val = self._tag_tcd(row)
+            val = value_fn(row)
             if val == 0.0:
                 continue
             if geom.geom_type in ("Polygon", "MultiPolygon"):
@@ -211,50 +216,16 @@ class VegetationManager:
             fill=0.0,
             dtype="float32",
         )
+
+    def _build_osm_tcd(self, gdf: gpd.GeoDataFrame, reference_path: Path) -> np.ndarray:
+        """Rasterizes OSM features with per-tag TCD fractions onto the TCD grid."""
+        return self._rasterize_osm_values(gdf, reference_path, self._tag_tcd)
 
     def _build_heuristic_chm(
         self, gdf: gpd.GeoDataFrame, reference_path: Path
     ) -> np.ndarray:
-        """Rasterizes OSM features with per-tag height values onto the TCD grid.
-
-        Points and LineStrings receive the same buffer as _build_osm_tcd so CHM
-        heights are consistent with the TCD mask.
-        """
-        with rasterio.open(reference_path) as ds:
-            out_shape = (ds.height, ds.width)
-            transform = ds.transform
-            raster_crs = ds.crs
-
-        if gdf.empty:
-            return np.zeros(out_shape, dtype="float32")
-
-        gdf_proj = gdf.to_crs(raster_crs) if gdf.crs != raster_crs else gdf
-
-        shapes = []
-        for _, row in gdf_proj.iterrows():
-            geom = row.geometry
-            if geom is None:
-                continue
-            val = self._tag_height(row)
-            if val == 0.0:
-                continue
-            if geom.geom_type in ("Polygon", "MultiPolygon"):
-                shapes.append((geom, val))
-            elif geom.geom_type == "Point":
-                shapes.append((geom.buffer(5.0), val))
-            elif geom.geom_type == "LineString":
-                shapes.append((geom.buffer(3.0), val))
-
-        if not shapes:
-            return np.zeros(out_shape, dtype="float32")
-
-        return rasterize(
-            shapes,
-            out_shape=out_shape,
-            transform=transform,
-            fill=0.0,
-            dtype="float32",
-        )
+        """Rasterizes OSM features with per-tag height values onto the TCD grid."""
+        return self._rasterize_osm_values(gdf, reference_path, self._tag_height)
 
     def _tag_tcd(self, row) -> float:
         """Returns OSM-derived TCD fraction for a feature row."""

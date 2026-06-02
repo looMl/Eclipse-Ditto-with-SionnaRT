@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from app.simulation.itu_p833 import excess_loss_db
+from app.simulation.vegetation.itu_p833 import excess_loss_db
 
 
 # Golden values independently computed for 1.8 GHz in-leaf:

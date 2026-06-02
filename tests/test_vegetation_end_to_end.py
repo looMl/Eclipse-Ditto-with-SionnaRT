@@ -14,8 +14,8 @@ from rasterio.transform import Affine
 
 from app.geomap_processor.processors.dem_processor import DemProcessor
 from app.geomap_processor.utils.vegetation_field import VegetationField
-from app.simulation.itu_p833 import excess_loss_db
-from app.simulation.vegetation_path_integrator import PathDepthIntegrator
+from app.simulation.vegetation.itu_p833 import excess_loss_db
+from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegrator
 
 
 _ORIGIN_LON = 11.0
