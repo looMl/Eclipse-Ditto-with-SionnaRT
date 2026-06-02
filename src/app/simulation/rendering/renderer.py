@@ -25,7 +25,7 @@ class SimulationRenderer:
         self.renders_dir = get_project_root() / "renders"
         self._ensure_renders_dir()
 
-    def render_visual(self, scene):
+    def render_visual(self, scene: rt.Scene) -> None:
         """
         Standard visual render (RGB).
         """
@@ -45,7 +45,7 @@ class SimulationRenderer:
             # Save
             self._save_image(np.array(image), self._get_next_filename("render_"))
 
-    def render_coverage(self, scene, radio_map, attenuation_db=None):
+    def render_coverage(self, scene: rt.Scene, radio_map, attenuation_db=None) -> None:
         """
         Renders the scene with a high-quality radio map overlay using Gouraud shading.
         """
@@ -179,11 +179,7 @@ class SimulationRenderer:
         existing_files = list(self.renders_dir.glob(f"{prefix}*.png"))
         max_idx = 0
         for p in existing_files:
-            try:
-                idx_str = p.stem.replace(prefix, "")
-                idx = int(idx_str)
-                if idx > max_idx:
-                    max_idx = idx
-            except ValueError:
-                pass
+            idx_str = p.stem.replace(prefix, "")
+            if idx_str.isdigit():
+                max_idx = max(max_idx, int(idx_str))
         return self.renders_dir / f"{prefix}{max_idx + 1}.png"

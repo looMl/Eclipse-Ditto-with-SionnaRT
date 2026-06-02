@@ -117,6 +117,6 @@ class CoverageProcessor:
 
             return surface
 
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
             logger.error(f"Error loading measurement surface: {e}")
             return None

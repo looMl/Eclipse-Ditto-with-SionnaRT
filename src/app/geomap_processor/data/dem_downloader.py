@@ -42,7 +42,7 @@ class DemDownloader:
             logger.info(f"DEM downloaded and saved to: {file_path}")
             return file_path
 
-        except Exception as e:
+        except (requests.RequestException, RuntimeError, OSError) as e:
             logger.error(f"Failed to download DEM from TINITALY: {e}")
             if file_path.exists():
                 file_path.unlink()
@@ -52,7 +52,7 @@ class DemDownloader:
         """Generates a unique file path based on the bounding box hash."""
         minx, miny, maxx, maxy = bbox
         bbox_str = f"{minx}_{miny}_{maxx}_{maxy}"
-        bbox_hash = hashlib.md5(bbox_str.encode()).hexdigest()
+        bbox_hash = hashlib.md5(bbox_str.encode(), usedforsecurity=False).hexdigest()
         filename = f"tinitaly_{bbox_hash}.tif"
 
         self.output_dir.mkdir(parents=True, exist_ok=True)

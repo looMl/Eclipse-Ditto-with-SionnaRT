@@ -24,6 +24,7 @@ from app.config import get_project_root
 
 
 DEFAULT_VALIDATION_DIR = "renders/validation_phase3_fixed"
+_METRES_PER_DEGREE = 111319.5  # WGS84 metres per degree of latitude at the equator
 
 
 def _load_records(path: Path) -> list:
@@ -39,8 +40,8 @@ def _load_records(path: Path) -> list:
 def _to_metres(lons: np.ndarray, lats: np.ndarray) -> np.ndarray:
     """Equirectangular projection to local metres, centred on dataset mean."""
     lon0, lat0 = lons.mean(), lats.mean()
-    x = (lons - lon0) * np.cos(np.radians(lat0)) * 111319.5
-    y = (lats - lat0) * 111319.5
+    x = (lons - lon0) * np.cos(np.radians(lat0)) * _METRES_PER_DEGREE
+    y = (lats - lat0) * _METRES_PER_DEGREE
     return np.column_stack([x, y])
 
 
@@ -136,7 +137,10 @@ def main() -> None:
     ]
     report = "\n".join(lines)
     print("\n" + report)
-    (val_dir / "gpr_correction.txt").write_text(report + "\n")
+    report_path = val_dir / "gpr_correction.txt"
+    tmp_path = report_path.with_suffix(".txt.tmp")
+    tmp_path.write_text(report + "\n")
+    tmp_path.replace(report_path)
 
     # Spatial error maps
     vabs = max(

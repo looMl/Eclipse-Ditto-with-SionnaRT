@@ -103,6 +103,9 @@ class SceneXMLUpdater:
                         r, g, b = map(float, val_str.split())
                         xml_colors[mat_id] = (r, g, b)
                     except ValueError:
+                        logger.debug(
+                            f"Skipping malformed reflectance '{val_str}' for material '{mat_id}'"
+                        )
                         continue
         return xml_colors
 
@@ -128,4 +131,3 @@ class SceneXMLUpdater:
         """Extracts the BSDF ID associated with a shape element."""
         ref = shape.find("ref[@name='bsdf']")
         return ref.get("id") if ref is not None else None
-

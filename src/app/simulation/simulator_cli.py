@@ -1,5 +1,4 @@
 import argparse
-import sys
 from loguru import logger
 from app.simulation.engine import SimulationEngine
 from app.simulation.scene_manager import SceneManager
@@ -28,7 +27,7 @@ class SimulatorCLI:
             help="Skip vegetation attenuation correction (coverage mode only).",
         )
 
-    def execute(self):
+    def execute(self) -> None:
         args = self.parser.parse_args()
 
         try:
@@ -49,7 +48,7 @@ class SimulatorCLI:
 
         except Exception as e:
             logger.exception(f"Simulation failed: {e}")
-            sys.exit(1)
+            raise
 
     def _run_render(self, scene, renderer: SimulationRenderer):
         logger.info("Mode: Visual Render")

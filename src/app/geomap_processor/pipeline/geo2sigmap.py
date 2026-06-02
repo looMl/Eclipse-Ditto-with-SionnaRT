@@ -22,6 +22,8 @@ from app.geomap_processor.utils.geometry_utils import (
 from rasterio.crs import CRS
 from app.services.ditto_manager import DittoManager
 
+_OVERPASS_API_URL = "https://overpass-api.de/api/interpreter"
+
 
 class SceneBuilder:
     """Service responsible for generating the 3D scene."""
@@ -36,7 +38,7 @@ class SceneBuilder:
             except OSError as e:
                 raise ValueError(
                     f"Could not create output directory '{self._output_dir}': {e}"
-                )
+                ) from e
 
     def generate(
         self, bbox: BoundingBox, materials: MaterialConfig, enable_ditto: bool = False
@@ -70,7 +72,7 @@ class SceneBuilder:
 
         except Exception as e:
             logger.error(f"Error during scene generation: {e}")
-            raise RuntimeError(f"Scene generation failed: {e}")
+            raise RuntimeError(f"Scene generation failed: {e}") from e
 
     def _generate_core_scene(
         self, bbox: BoundingBox, materials: MaterialConfig
@@ -88,7 +90,7 @@ class SceneBuilder:
             points=bbox.polygon_points,
             data_dir=str(self._output_dir),
             hag_tiff_path=None,
-            osm_server_addr="https://overpass-api.de/api/interpreter",
+            osm_server_addr=_OVERPASS_API_URL,
             lidar_calibration=False,
             generate_building_map=False,
             ground_material_type=ground_mat,
@@ -280,7 +282,7 @@ class SceneBuilder:
             return None, None, 0.0
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate a 3D scene from geospatial data."
     )
@@ -311,6 +313,7 @@ def main():
 
     except Exception as e:
         logger.critical(f"Application failed: {e}")
+        raise
 
 
 if __name__ == "__main__":

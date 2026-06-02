@@ -76,7 +76,7 @@ class TelecomManager:
 
         try:
             utm_crs = gdf.estimate_utm_crs()
-        except Exception:
+        except (ValueError, RuntimeError):
             utm_crs = "EPSG:3857"  # Web Mercator
 
         gdf_proj = gdf.to_crs(utm_crs)
@@ -197,5 +197,6 @@ class TelecomManager:
                 f"Exported {len(ditto_items)} antenna Things "
                 f"({len(self.transmitters)} sectors) to {output_path}"
             )
-        except Exception as e:
+        except (OSError, TypeError) as e:
             logger.error(f"Failed to export transmitters JSON: {e}")
+            raise

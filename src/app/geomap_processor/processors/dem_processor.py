@@ -225,5 +225,5 @@ class DemProcessor:
                 return float(elevation_data[r, c] - normalize_value)
 
             return 0.0
-        except Exception:
+        except (ValueError, IndexError):
             return 0.0

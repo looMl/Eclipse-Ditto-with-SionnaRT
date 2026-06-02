@@ -55,7 +55,7 @@ class BuildingMesher:
             logger.info(f"Exported {output_filename}")
             return True
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.error(f"Failed to merge meshes into {output_filename}: {e}")
             return False
 
@@ -68,7 +68,7 @@ class BuildingMesher:
             z_offset = height_callback(cx, cy)
             if z_offset != 0:
                 mesh.apply_translation([0, 0, z_offset])
-        except Exception as e:
+        except (ValueError, IndexError, TypeError) as e:
             logger.warning(f"Failed to apply height offset to mesh: {e}")
 
     def cleanup_files(self, files: List[Path]) -> None:

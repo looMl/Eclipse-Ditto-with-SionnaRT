@@ -9,6 +9,8 @@ from rasterio.transform import Affine
 
 from app.geomap_processor.processors.dem_processor import DemProcessor
 
+_WGS84_EPSG = 4326
+
 
 @dataclass
 class VegetationField:
@@ -34,7 +36,7 @@ class VegetationField:
         )
 
         # Convert lon/lat to the raster's native CRS when it's not EPSG:4326
-        if self.crs.to_epsg() != 4326:
+        if self.crs.to_epsg() != _WGS84_EPSG:
             rx_list, ry_list = rasterio.warp.transform(
                 "EPSG:4326", self.crs, [lon], [lat]
             )

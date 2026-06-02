@@ -8,11 +8,12 @@ import numpy as np
 import rasterio
 from loguru import logger
 from rasterio.crs import CRS
+from rasterio.errors import RasterioError
 from rasterio.mask import mask as rio_mask
 from rasterio.merge import merge as rio_merge
 from rasterio.transform import array_bounds
 from rasterio.warp import Resampling, calculate_default_transform, reproject
-from requests import get as http_get
+from requests import RequestException, get as http_get
 from shapely.geometry import box
 
 # ESA WorldCover 2021 class value for "Tree cover"
@@ -29,6 +30,7 @@ class VegetationRasterDownloader:
         "https://esa-worldcover.s3.eu-central-1.amazonaws.com"
         "/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile_id}_Map.tif"
     )
+    _PLANETARY_COMPUTER_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
@@ -72,7 +74,7 @@ class VegetationRasterDownloader:
             if source == "copernicus_hrl":
                 return self._copernicus_tcd(bbox, out_path, target_crs)
             raise ValueError(f"Unknown tcd_source: {source!r}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, ImportError, RasterioError) as e:
             logger.error(f"TCD fetch failed [{source}]: {e}")
             out_path.unlink(missing_ok=True)
             return None
@@ -99,7 +101,7 @@ class VegetationRasterDownloader:
                 out_path.unlink(missing_ok=True)
                 return None
             raise ValueError(f"Unknown chm_source: {source!r}")
-        except Exception as e:
+        except (ValueError, OSError) as e:
             logger.error(f"CHM fetch failed [{source}]: {e}")
             out_path.unlink(missing_ok=True)
             return None
@@ -156,7 +158,7 @@ class VegetationRasterDownloader:
 
         min_lon, min_lat, max_lon, max_lat = bbox
         catalog = pystac_client.Client.open(
-            "https://planetarycomputer.microsoft.com/api/stac/v1",
+            self._PLANETARY_COMPUTER_STAC_URL,
             modifier=planetary_computer.sign_inplace,
         )
         items = list(
@@ -342,7 +344,7 @@ class VegetationRasterDownloader:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
             return dest
-        except Exception as e:
+        except (RequestException, OSError) as e:
             logger.error(f"Download failed [{url}]: {e}")
             dest.unlink(missing_ok=True)
             return None
@@ -354,6 +356,6 @@ class VegetationRasterDownloader:
         bbox: Tuple[float, float, float, float],
     ) -> Path:
         bbox_hash = hashlib.md5(
-            f"{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}".encode()
+            f"{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}".encode(), usedforsecurity=False
         ).hexdigest()
         return self.output_dir / f"veg_{layer}_{source}_{bbox_hash}.tif"

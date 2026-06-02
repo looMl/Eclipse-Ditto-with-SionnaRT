@@ -1,9 +1,8 @@
 import yaml
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from loguru import logger
-import sys
 
 # --- Models schemas ---
 
@@ -98,7 +97,7 @@ def load_settings() -> Settings:
 
     if not config_path.exists():
         logger.critical(f"Config file not found at {config_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Config file not found at {config_path}")
 
     try:
         with open(config_path, "r") as f:
@@ -106,12 +105,9 @@ def load_settings() -> Settings:
 
         return Settings(**raw_config)
 
-    except Exception as e:
+    except (OSError, yaml.YAMLError, ValidationError) as e:
         logger.critical(f"Configuration error: {e}")
-        sys.exit(1)
+        raise
 
 
-try:
-    settings = load_settings()
-except Exception:
-    sys.exit(1)
+settings = load_settings()

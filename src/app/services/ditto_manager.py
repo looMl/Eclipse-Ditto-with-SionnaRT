@@ -29,7 +29,7 @@ class DittoManager:
 
     def provision_simulation(
         self, transmitters_json_path: Path, namespace: str = DEFAULT_NAMESPACE
-    ):
+    ) -> None:
         """
         1. Delete all existing things in the namespace.
         2. Create new things from the transmitters JSON file.
@@ -93,7 +93,7 @@ class DittoManager:
             with open(path, "r") as f:
                 data = json.load(f)
                 return data
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error(f"DittoManager: Failed to load JSON: {e}")
             return []
 

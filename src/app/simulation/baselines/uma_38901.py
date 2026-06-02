@@ -127,7 +127,7 @@ def predict_rsrp_uma(
     num_subcarriers: int = 900,
     num_rows: int = 4,
     num_cols: int = 1,
-) -> dict:
+) -> dict[str, float]:
     """Closed-form RSRP estimate using 3GPP TR 38.901 UMa.
 
     Returns the LOS-probability-weighted expected path loss (averaged in linear

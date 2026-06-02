@@ -1,4 +1,5 @@
 import json
+from typing import Tuple
 import pyproj
 import numpy as np
 import sionna.rt
@@ -33,7 +34,7 @@ class SceneManager:
 
         return scene
 
-    def get_transformer(self):
+    def get_transformer(self) -> Tuple[pyproj.Transformer, Tuple[float, float]]:
         """Returns the transformer and origin offset for coordinate conversion."""
         updater = SceneXMLUpdater(self.scene_path)
         proj_info = updater.get_projection_info()

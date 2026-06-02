@@ -3,7 +3,9 @@ from pathlib import Path
 from loguru import logger
 
 
-def subdivide_mesh(input_path: Path, output_path: Path, max_edge_len: float = 1.0):
+def subdivide_mesh(
+    input_path: Path, output_path: Path, max_edge_len: float = 1.0
+) -> bool:
     """
     Loads a mesh, subdivides it so that no edge is longer than max_edge_len.
     """
@@ -45,6 +47,6 @@ def subdivide_mesh(input_path: Path, output_path: Path, max_edge_len: float = 1.
         logger.success(f"Saved subdivided mesh to: {output_path}")
         return True
 
-    except Exception as e:
+    except (OSError, ValueError) as e:
         logger.error(f"Failed to subdivide mesh: {e}")
         return False
