@@ -7,8 +7,6 @@ from loguru import logger
 
 
 class DemDownloader:
-    """Service responsible for downloading DEM data."""
-
     TINITALY_WCS_URL = "http://tinitaly.pi.ingv.it/TINItaly_1_1/wcs"
     COVERAGE_ID = "TINItaly_1_1:tinitaly_dem"
     RESOLUTION = 0.00009  # Approx 10m resolution (degrees)
@@ -23,7 +21,6 @@ class DemDownloader:
         """
         file_path = self._get_file_path(bbox)
 
-        # Check cache
         if file_path.exists():
             logger.info(f"Using cached DEM file: {file_path}")
             return file_path
@@ -61,7 +58,6 @@ class DemDownloader:
     def _calculate_dimensions(
         self, bbox: tuple[float, float, float, float]
     ) -> tuple[int, int]:
-        """Calculates image dimensions based on target resolution."""
         minx, miny, maxx, maxy = bbox
         width = int(abs(maxx - minx) / self.RESOLUTION)
         height = int(abs(maxy - miny) / self.RESOLUTION)
@@ -85,7 +81,6 @@ class DemDownloader:
         }
 
     def _download_and_save(self, params: dict[str, Any], file_path: Path) -> None:
-        """Executes the download and saves the content to disk."""
         req = requests.Request("GET", self.TINITALY_WCS_URL, params=params)
         prepped = req.prepare()
         logger.info(f"Requesting URL: {prepped.url}")

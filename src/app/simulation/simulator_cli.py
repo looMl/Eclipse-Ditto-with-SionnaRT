@@ -7,10 +7,6 @@ from app.simulation.coverage import CoverageProcessor
 
 
 class SimulatorCLI:
-    """
-    Command-line interface for the SionnaRT simulation environment.
-    Supports standard visual rendering and coverage map analysis.
-    """
 
     def __init__(self):
         self.parser = argparse.ArgumentParser(description="SionnaRT Simulation CLI")

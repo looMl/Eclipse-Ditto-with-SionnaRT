@@ -11,10 +11,6 @@ from app.simulation.vegetation.vegetation_attenuator import VegetationAttenuator
 
 
 class CoverageProcessor:
-    """
-    Handles computation of radio coverage maps on the terrain.
-    """
-
     def __init__(self, scene: Scene):
         self.scene = scene
         self.settings = get_settings().sionnart.coverage
@@ -22,15 +18,8 @@ class CoverageProcessor:
     def compute_coverage_map(
         self, skip_vegetation: bool = False
     ) -> tuple[RadioMap, np.ndarray | None]:
-        """
-        Computes the radio map using the terrain mesh as the measurement surface.
-
-        Returns
-        -------
-        radio_map : RadioMap
-        attenuation_db : np.ndarray of shape [num_tx, num_faces], or None when
-            vegetation correction is disabled or the vegetation field is absent.
-        """
+        """Computes the radio map. Returns (radio_map, attenuation_db) where
+        attenuation_db is None when vegetation correction is disabled or absent."""
         logger.info("Starting coverage map computation...")
 
         measurement_surface = self._prepare_measurement_surface()
@@ -83,15 +72,11 @@ class CoverageProcessor:
         return attenuator.compute_attenuation_field(radio_map, freq_hz, leaf_state)
 
     def _prepare_measurement_surface(self):
-        """
-        Finds the terrain mesh, creates a high-res version if needed, and loads it.
-        """
         scene_dir = get_project_root() / "scene"
         mesh_dir = scene_dir / "mesh"
         original_ply = mesh_dir / "terrain.ply"
         subdivided_ply = mesh_dir / "terrain_subdivided.ply"
 
-        # Check if we need to generate high-res mesh
         if not subdivided_ply.exists():
             logger.info(
                 "Generating high-resolution terrain mesh for smoother coverage..."

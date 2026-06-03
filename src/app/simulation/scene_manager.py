@@ -8,10 +8,6 @@ from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 
 
 class SceneManager:
-    """
-    Handles scene loading, patching, and asset management.
-    """
-
     def __init__(self):
         self.scene_dir = get_project_root() / "scene"
         self.scene_path = self.scene_dir / get_settings().sionnart.scene_name
@@ -65,12 +61,8 @@ class SceneManager:
                 mat.color = xml_colors[mat.id()]
 
     def _load_transmitters(self, scene: sionna.rt.Scene):
-        """Loads transmitters from json file and positions them in the scene.
-
-        Each JSON item represents one antenna site with sector_N features.
-        One Sionna transmitter is created per sector so the simulation uses
-        all 3 cells per site.
-        """
+        """Loads transmitters from JSON. Each item is one antenna site; one Sionna
+        transmitter is created per sector_N feature."""
         if not self.transmitters_json.exists():
             logger.warning("Transmitters registry not found.")
             return

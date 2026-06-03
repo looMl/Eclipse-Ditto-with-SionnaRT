@@ -16,33 +16,20 @@ from app.simulation.rendering.shading_utils import prepare_gouraud_shading_for_r
 
 
 class SimulationRenderer:
-    """
-    Handles rendering of the scene, including standard RGB passes and
-    complex coverage map overlays using custom shading pipelines.
-    """
-
     def __init__(self):
         self.renders_dir = get_project_root() / "renders"
         self._ensure_renders_dir()
 
     def render_visual(self, scene: rt.Scene) -> None:
-        """
-        Standard visual render (RGB).
-        """
         settings_render = get_settings().sionnart.rendering
         logger.info(f"Starting Visual Render ({settings_render.resolution})...")
 
         with mi.util.scoped_set_variant("cuda_ad_rgb"):
-            # Build Scene
             sensor = VisualSceneBuilder.create_sensor(
                 settings_render.resolution, pixel_format="rgb"
             )
             visual_scene = VisualSceneBuilder.build_visual_scene(scene, sensor)
-
-            # Render
             image = mi.render(visual_scene, spp=settings_render.num_samples)
-
-            # Save
             self._save_image(np.array(image), self._get_next_filename("render_"))
 
     def render_coverage(self, scene: rt.Scene, radio_map, attenuation_db=None) -> None:
@@ -107,7 +94,6 @@ class SimulationRenderer:
                 settings_render.num_samples,
             )
 
-            # Save
             self._save_image(result, self._get_next_filename("coverage_"))
 
     def _render_and_composite_overlay(
@@ -116,11 +102,9 @@ class SimulationRenderer:
         """
         Renders the overlay scene and composites it onto the main image using depth occlusion.
         """
-        # Load Overlay Scene (suppress warnings)
-        with scoped_set_log_level(mi.LogLevel.Error):
+        with scoped_set_log_level(mi.LogLevel.Error):  # suppress overlay load warnings
             overlay_scene = mi.load_dict(overlay_dict)
 
-        # Integrators
         depth_integrator = mi.load_dict({"type": "depth"})
         overlay_integrator = mi.load_dict(
             {
@@ -130,7 +114,6 @@ class SimulationRenderer:
             }
         )
 
-        # Render Passes
         depth_main = unmultiply_alpha(
             mi.render(
                 visual_scene, sensor=sensor, integrator=depth_integrator, spp=4

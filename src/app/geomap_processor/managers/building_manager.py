@@ -5,15 +5,10 @@ from loguru import logger
 
 
 class BuildingMesher:
-    """Service responsible for merging building meshes together."""
-
     def __init__(self, mesh_dir: Path):
         self.mesh_dir = mesh_dir
 
     def get_building_files(self) -> tuple[list[Path], list[Path]]:
-        """
-        Scans the mesh directory for building wall and rooftop files.
-        """
         wall_files = list(self.mesh_dir.glob("building_*_wall.ply"))
         rooftop_files = list(self.mesh_dir.glob("building_*_rooftop.ply"))
         return wall_files, rooftop_files
@@ -72,7 +67,6 @@ class BuildingMesher:
             logger.warning(f"Failed to apply height offset to mesh: {e}")
 
     def cleanup_files(self, files: list[Path]) -> None:
-        """Deletes the provided files from the filesystem."""
         for f in files:
             try:
                 f.unlink()

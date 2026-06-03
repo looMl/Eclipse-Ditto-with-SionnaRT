@@ -31,17 +31,11 @@ class Transmitter:
 
 
 class TelecomManager:
-    """
-    Manages fetching and processing of telecom infrastructure data.
-    """
-
     DEFAULT_HEIGHT = 30.0
 
     def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
         self.transmitters: list[Transmitter] = []
-
-        # Calculate center for local coordinate system
         self.center_lon, self.center_lat = bbox.center
 
     def fetch_and_process(self) -> None:
@@ -74,18 +68,16 @@ class TelecomManager:
 
         logger.info(f"Found {len(gdf)} telecom features.")
 
-        # Ensure CRS for projection
         if gdf.crs is None:
-            gdf.set_crs("EPSG:4326", inplace=True)  # GCRS
+            gdf.set_crs("EPSG:4326", inplace=True)
 
         try:
             utm_crs = gdf.estimate_utm_crs()
         except (ValueError, RuntimeError):
-            utm_crs = "EPSG:3857"  # Web Mercator
+            utm_crs = "EPSG:3857"  # Web Mercator fallback
 
         gdf_proj = gdf.to_crs(utm_crs)
 
-        # Project center to calculate local offsets
         center_pt = gpd.GeoDataFrame(
             geometry=[Point(self.center_lon, self.center_lat)], crs="EPSG:4326"
         ).to_crs(utm_crs)
@@ -93,16 +85,14 @@ class TelecomManager:
         cx, cy = center_pt.geometry[0].x, center_pt.geometry[0].y
 
         for idx, row in gdf_proj.iterrows():
-            # Get metric coordinates
             x, y = self._get_geometry_center(row.geometry)
             geom_orig = gdf.loc[idx].geometry
 
-            # Handle potential duplicate indices
+            # osmnx can return a GeoSeries on duplicate indices
             if isinstance(geom_orig, gpd.GeoSeries):
                 geom_orig = geom_orig.iloc[0]
             lon, lat = self._get_geometry_center(geom_orig)
 
-            # Populate Transmitter Data
             tx_list = self._create_site_transmitters(idx, lat, lon, x - cx, y - cy)
             self.transmitters.extend(tx_list)
 
@@ -142,7 +132,7 @@ class TelecomManager:
                 tilt=random.uniform(2, 6),
                 azimuth=azimuth,
                 frequency=1.8e9,
-                active_users=random.randint(0, 33),  # Divided by roughly 3 from old max
+                active_users=random.randint(0, 33),
             )
             sectors.append(tx)
 
@@ -154,7 +144,6 @@ class TelecomManager:
         Each site's 3 sectors are nested as features (sector_0, sector_1, sector_2)
         so a single API call provisions the full antenna instead of 3 separate Things.
         """
-        # Group the flat sector list back into sites keyed by site_id
         sites: dict[str, list[Transmitter]] = {}
         for tx in self.transmitters:
             site_id = tx.id.rsplit("_s", 1)[0]

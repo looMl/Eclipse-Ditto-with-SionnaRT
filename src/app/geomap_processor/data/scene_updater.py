@@ -5,8 +5,6 @@ from loguru import logger
 
 
 class SceneXMLUpdater:
-    """Service for updating the scene.xml file."""
-
     def __init__(self, scene_path: Path):
         self.scene_path = scene_path
         self.tree = None
@@ -14,7 +12,6 @@ class SceneXMLUpdater:
         self._load()
 
     def _load(self) -> None:
-        """Parses the XML file."""
         try:
             self.tree = ET.parse(self.scene_path)
             self.root = self.tree.getroot()
@@ -26,7 +23,6 @@ class SceneXMLUpdater:
             raise
 
     def save(self) -> None:
-        """Writes changes back to the file."""
         try:
             self.tree.write(self.scene_path, encoding="utf-8", xml_declaration=True)
             logger.success(f"Saved changes to {self.scene_path}")
@@ -110,11 +106,8 @@ class SceneXMLUpdater:
         return xml_colors
 
     def get_projection_info(self) -> dict[str, Any]:
-        """
-        Extracts projection-related metadata from the XML.
-        Returns a dict with center_lat, center_lon, and utm_zone.
-        Raises ValueError if any of the three expected keys is absent from the scene XML.
-        """
+        """Returns center_lat, center_lon, utm_zone from scene XML defaults.
+        Raises ValueError if any key is missing."""
         info: dict[str, Any] = {}
         defaults = {
             "center_lat": "scenegen_center_lat",
@@ -136,6 +129,5 @@ class SceneXMLUpdater:
         return info
 
     def _get_bsdf_id(self, shape: ET.Element) -> str | None:
-        """Extracts the BSDF ID associated with a shape element."""
         ref = shape.find("ref[@name='bsdf']")
         return ref.get("id") if ref is not None else None

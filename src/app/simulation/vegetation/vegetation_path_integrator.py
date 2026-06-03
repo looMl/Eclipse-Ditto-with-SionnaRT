@@ -4,8 +4,6 @@ Per-(TX, face) effective vegetation depth integrator.
 Strategy: per-TX outer loop (memory-safe) + vectorised NumPy inner loop over
 faces + AABB pre-filter that skips face batches whose segment bounding box
 doesn't intersect any non-zero TCD pixel.
-
-# TODO: Numba @njit escape hatch for production performance
 """
 
 from dataclasses import dataclass
@@ -32,23 +30,9 @@ class DemSampler:
 
 
 class PathDepthIntegrator:
-    """
-    Walks LOS segments on the TCD/CHM raster grid to compute per-(TX, face)
-    effective vegetation depth [m].
-
-    Parameters
-    ----------
-    field : VegetationField
-        Aligned TCD/CHM arrays in UTM CRS (output of VegetationManager).
-    dem : DemSampler, optional
-        Elevation model for 3-D in-canopy checks. When None, every LOS step
-        that overlaps a non-zero TCD pixel is counted (conservative).
-    step_m : float
-        LOS sampling step in metres. Automatically capped to half the TCD
-        raster cell size so there is no benefit in over-sampling.
-
-    # TODO: Numba @njit escape hatch for production performance
-    """
+    """Walks LOS segments on the TCD/CHM raster to compute per-(TX, face)
+    effective vegetation depth [m]. DEM enables 3-D in-canopy checks; without it
+    every step over a non-zero TCD pixel is counted (conservative)."""
 
     def __init__(
         self,
@@ -90,20 +74,8 @@ class PathDepthIntegrator:
     # ------------------------------------------------------------------
 
     def integrate(self, tx_xyz: np.ndarray, rx_xyz_array: np.ndarray) -> np.ndarray:
-        """
-        Returns effective vegetation depth [m] for each of N face centroids.
-
-        Parameters
-        ----------
-        tx_xyz : (3,) float
-            TX position in scene-local metres [x, y, z].
-        rx_xyz_array : (N, 3) float
-            Face centroid positions in scene-local metres.
-
-        Returns
-        -------
-        depth_eff : (N,) float32
-        """
+        """Returns effective vegetation depth [m] for each of N face centroids.
+        tx_xyz: (3,) scene-local. rx_xyz_array: (N, 3) scene-local. Returns (N,) float32."""
         N = len(rx_xyz_array)
         depth_eff = np.zeros(N, dtype="float32")
 
@@ -122,24 +94,8 @@ class PathDepthIntegrator:
     def integrate_segments(
         self, p0_array: np.ndarray, p1_array: np.ndarray
     ) -> np.ndarray:
-        """
-        Returns effective vegetation depth [m] for each of N arbitrary segments.
-
-        Per-segment counterpart to :meth:`integrate`: enables per-PATH vegetation
-        attenuation (one call covers every segment across every reflected ray)
-        rather than per-LINK (single TX→RX straight line).
-
-        Parameters
-        ----------
-        p0_array : (N, 3) float
-            Segment start points in scene-local metres.
-        p1_array : (N, 3) float
-            Segment end points in scene-local metres.
-
-        Returns
-        -------
-        depth_eff : (N,) float32
-        """
+        """Per-segment counterpart to integrate(): enables per-PATH attenuation across
+        all reflected ray segments, not just a single TX→RX link. Returns (N,) float32."""
         p0 = np.asarray(p0_array, dtype="float64")
         p1 = np.asarray(p1_array, dtype="float64")
         N = len(p0)
@@ -162,10 +118,6 @@ class PathDepthIntegrator:
             )
         depth_eff[active] = depth_active
         return depth_eff
-
-    # ------------------------------------------------------------------
-    # Chunked batch integrator (one TX, N filtered faces → loop over chunks)
-    # ------------------------------------------------------------------
 
     def _integrate_batch(
         self, tx_xyz: np.ndarray, rx_xyz_array: np.ndarray
@@ -269,10 +221,6 @@ class PathDepthIntegrator:
 
         return contribution.sum(axis=1).astype("float32")
 
-    # ------------------------------------------------------------------
-    # Raster sampling (nearest-neighbour; 10 m grid makes bilinear redundant here)
-    # ------------------------------------------------------------------
-
     def _sample_field_batch(
         self, sample_xy: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -313,10 +261,6 @@ class PathDepthIntegrator:
         np.clip(row, 0, H - 1, out=row)
 
         return (dem.elevation[row, col] - dem.ref_elev).astype("float32")
-
-    # ------------------------------------------------------------------
-    # AABB pre-filter helpers
-    # ------------------------------------------------------------------
 
     def _aabb_filter(self, tx_xy: np.ndarray, rx_xy_array: np.ndarray) -> np.ndarray:
         """Returns bool mask: True for faces whose segment AABB overlaps non-zero TCD bbox."""

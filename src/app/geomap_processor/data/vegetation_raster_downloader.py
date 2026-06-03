@@ -51,10 +51,6 @@ class VegetationRasterDownloader:
         chm_path = self._fetch_chm(bbox, chm_source, target_crs)
         return tcd_path, chm_path
 
-    # ------------------------------------------------------------------
-    # TCD dispatch
-    # ------------------------------------------------------------------
-
     def _fetch_tcd(
         self,
         bbox: tuple[float, float, float, float],
@@ -105,10 +101,6 @@ class VegetationRasterDownloader:
             out_path.unlink(missing_ok=True)
             return None
 
-    # ------------------------------------------------------------------
-    # ESA WorldCover — binary tree mask, zero-auth
-    # ------------------------------------------------------------------
-
     def _worldcover_tcd(
         self,
         bbox: tuple[float, float, float, float],
@@ -131,10 +123,6 @@ class VegetationRasterDownloader:
 
         logger.info(f"WorldCover TCD saved: {out_path}")
         return out_path
-
-    # ------------------------------------------------------------------
-    # WorldCover + NDVI — continuous TCD, zero-auth
-    # ------------------------------------------------------------------
 
     def _worldcover_ndvi_tcd(
         self,
@@ -195,10 +183,6 @@ class VegetationRasterDownloader:
         logger.info(f"WorldCover+NDVI TCD saved: {out_path}")
         return out_path
 
-    # ------------------------------------------------------------------
-    # Copernicus HRL — optional, requires CLMS_TOKEN
-    # ------------------------------------------------------------------
-
     def _copernicus_tcd(
         self,
         bbox: tuple[float, float, float, float],
@@ -215,12 +199,8 @@ class VegetationRasterDownloader:
             "Use tcd_source='esa_worldcover' or 'worldcover+ndvi'."
         )
 
-    # ------------------------------------------------------------------
-    # Shared helpers
-    # ------------------------------------------------------------------
-
     def _tile_ids(self, bbox: tuple[float, float, float, float]) -> list[str]:
-        """3°×3° tile IDs (WorldCover / ETH CHM grid) covering the bbox."""
+        """3°x3° tile IDs (WorldCover / ETH CHM grid) covering the bbox."""
         min_lon, min_lat, max_lon, max_lat = bbox
         ids: list[str] = []
         lat = math.floor(min_lat / 3) * 3

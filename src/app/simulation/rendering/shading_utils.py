@@ -13,18 +13,13 @@ def prepare_gouraud_shading_for_radio_map(
     cmap: str,
     attenuation_db: np.ndarray | None = None,
 ) -> mi.Shape:
-    """
-    Converts a flat-shaded MeshRadioMap into a vertex-colored Mitsuba shape.
-
-    This prepares the mesh for Gouraud shading (vertex interpolation) by the renderer,
-    creating a smooth gradient instead of discrete triangle colors.
-    """
+    """Converts a flat-shaded MeshRadioMap into a Mitsuba shape with per-vertex colors
+    for Gouraud (smooth-gradient) shading instead of discrete triangle colors."""
     # 4G LTE 15 MHz = 900 subcarriers
     NUM_SUBCARRIERS = 900
 
-    # 1. Get scalar values per face
     if attenuation_db is not None:
-        # Per-TX path: subtract vegetation attenuation in dB before max-aggregating.
+        # Subtract vegetation attenuation in dB before max-aggregating.
         # Subtraction in dB == division in linear: rm_attenuated = rm / 10^(A/10).
         num_tx = attenuation_db.shape[0]
         rm_values = np.zeros(attenuation_db.shape[1], dtype="float64")
@@ -35,7 +30,7 @@ def prepare_gouraud_shading_for_radio_map(
             rm_k = rm_k / np.power(10.0, attenuation_db[k] / 10.0)
             np.maximum(rm_values, rm_k, out=rm_values)
     else:
-        # Fast path: Sionna aggregates over all TXs with max internally.
+        # tx=None: Sionna aggregates over all TXs with max internally.
         rm_values = radio_map.transmitter_radio_map(metric=metric, tx=None).numpy()
         if metric == "rss":
             rm_values *= NUM_SUBCARRIERS
@@ -43,32 +38,23 @@ def prepare_gouraud_shading_for_radio_map(
     mesh = radio_map.measurement_surface
     num_vertices = mesh.vertex_count()
 
-    # 2. Get face indices to map faces -> vertices
     # mi.traverse is safe for Dr.Jit/Mitsuba variants
     params = mi.traverse(mesh)
     faces = np.array(params["faces"], copy=False)
 
-    # 3. Compute Vertex Values (Average of connected faces)
-    # This transforms Face Data -> Vertex Data
     vertex_values = np.zeros(num_vertices)
     vertex_counts = np.zeros(num_vertices)
-
-    # Spread each face's value to its 3 vertices
     expanded_values = np.repeat(rm_values, 3)
     np.add.at(vertex_values, faces, expanded_values)
     np.add.at(vertex_counts, faces, 1)
-
-    # Normalize by connection count to get average
     mask = vertex_counts > 0
     vertex_values[mask] /= vertex_counts[mask]
 
-    # 4. Map Scalars to Colors (Texture)
     texture, opacity = radio_map_texture(
         vertex_values, db_scale=True, rm_cmap=cmap, vmin=vmin, vmax=vmax
     )
 
-    # 5. Create the Emitter Shape with Vertex Attributes
-    # 'mesh_attribute' tells Mitsuba to look at per-vertex data, which it then interpolates.
+    # 'mesh_attribute' tells Mitsuba to interpolate per-vertex data across the face.
     bsdf = {
         "type": "mask",
         "opacity": {

@@ -136,10 +136,6 @@ class VegetationManager:
             origin_lat=origin_lat,
         )
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def _burn_polygon_mask(
         self, gdf: gpd.GeoDataFrame, reference_path: Path
     ) -> np.ndarray:
@@ -219,17 +215,14 @@ class VegetationManager:
         )
 
     def _build_osm_tcd(self, gdf: gpd.GeoDataFrame, reference_path: Path) -> np.ndarray:
-        """Rasterizes OSM features with per-tag TCD fractions onto the TCD grid."""
         return self._rasterize_osm_values(gdf, reference_path, self._tag_tcd)
 
     def _build_heuristic_chm(
         self, gdf: gpd.GeoDataFrame, reference_path: Path
     ) -> np.ndarray:
-        """Rasterizes OSM features with per-tag height values onto the TCD grid."""
         return self._rasterize_osm_values(gdf, reference_path, self._tag_height)
 
     def _tag_tcd(self, row) -> float:
-        """Returns OSM-derived TCD fraction for a feature row."""
         for tag_key in ("natural", "landuse", "leisure"):
             val = row.get(tag_key)
             if val and isinstance(val, str) and val in _OSM_TCD_FRACTIONS:
@@ -237,7 +230,6 @@ class VegetationManager:
         return 0.0
 
     def _tag_height(self, row) -> float:
-        """Returns heuristic canopy height for an OSM feature row."""
         for tag_key in ("natural", "landuse", "leisure"):
             val = row.get(tag_key)
             if val and isinstance(val, str) and val in _HEURISTIC_HEIGHTS:

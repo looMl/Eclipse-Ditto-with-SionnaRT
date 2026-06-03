@@ -8,10 +8,6 @@ from loguru import logger
 
 
 class DemProcessor:
-    """
-    Handles Digital Elevation Model (DEM) processing and terrain mesh generation.
-    """
-
     @staticmethod
     def get_utm_crs(lon: float, lat: float) -> str:
         """Calculates the EPSG code for the UTM zone of the given coordinate."""
@@ -23,22 +19,18 @@ class DemProcessor:
     def process_dem(
         dem_path: str | Path, bbox: tuple[float, float, float, float]
     ) -> tuple[np.ndarray, rasterio.Affine]:
-        """
-        Reads a DEM file, reprojects it to EPSG:4326, and crops it to the specified bounding box.
-        """
+        """Reads a DEM, reprojects to EPSG:4326, and crops to the bounding box."""
         dst_crs = "EPSG:4326"
         west, south, east, north = bbox
 
         try:
             with rasterio.open(dem_path) as src:
-                # Calculate optimal transform to determine target resolution
                 transform, width, height = calculate_default_transform(
                     src.crs, dst_crs, src.width, src.height, *src.bounds
                 )
 
                 res_x, res_y = abs(transform[0]), abs(transform[4])
 
-                # Calculate dimensions based on bbox and resolution
                 dst_width = int((east - west) / res_x)
                 dst_height = int((north - south) / res_y)
 
@@ -122,7 +114,7 @@ class DemProcessor:
             bl = indices[1:, :-1].flatten()  # Bottom-Left
             br = indices[1:, 1:].flatten()  # Bottom-Right
 
-            # Create two triangles per quad: (TL, BL, TR) and (TR, BL, BR)
+            # Two triangles per quad: (TL, BL, TR) and (TR, BL, BR)
             faces = np.column_stack(
                 [
                     np.column_stack((tl, bl, tr)),
@@ -191,17 +183,14 @@ class DemProcessor:
         dst_crs = DemProcessor.get_utm_crs(origin_lon, origin_lat)
         src_crs = "EPSG:4326"
 
-        # Calculate origin in UTM
         ox_list, oy_list = rasterio.warp.transform(
             src_crs, dst_crs, [origin_lon], [origin_lat]
         )
         ox, oy = ox_list[0], oy_list[0]
 
-        # Project point to UTM
         px_list, py_list = rasterio.warp.transform(src_crs, dst_crs, [lon], [lat])
         px, py = px_list[0], py_list[0]
 
-        # Subtract origin
         return px - ox, py - oy
 
     @staticmethod

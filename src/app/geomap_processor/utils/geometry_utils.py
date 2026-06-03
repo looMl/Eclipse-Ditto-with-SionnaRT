@@ -17,15 +17,12 @@ def resolve_material(idx: int) -> str:
 
 @dataclass(frozen=True)
 class BoundingBox:
-    """Represents the geographical bounding box."""
-
     min_lon: float
     min_lat: float
     max_lon: float
     max_lat: float
 
     def validate(self) -> None:
-        """Ensures coordinates form a valid bounding box."""
         if self.min_lon >= self.max_lon:
             raise ValueError(
                 f"min_lon ({self.min_lon}) must be less than max_lon ({self.max_lon})"
@@ -60,14 +57,11 @@ class BoundingBox:
 
     @property
     def center(self) -> tuple[float, float]:
-        """Returns the center (lon, lat) of the bounding box."""
         return (self.min_lon + self.max_lon) / 2.0, (self.min_lat + self.max_lat) / 2.0
 
 
 @dataclass(frozen=True)
 class MaterialConfig:
-    """Configuration for material indices."""
-
     ground_idx: int = 1  # Default: concrete
     rooftop_idx: int = 2  # Default: brick
     wall_idx: int = 1  # Default: concrete

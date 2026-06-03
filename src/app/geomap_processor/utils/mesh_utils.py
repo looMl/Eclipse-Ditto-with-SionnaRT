@@ -17,9 +17,7 @@ def subdivide_mesh(
             f"Original mesh: {len(mesh.vertices)} vertices, {len(mesh.faces)} faces"
         )
 
-        # Iterative subdivision
-        # Limit iterations to avoid explosion
-        max_iter = 3
+        max_iter = 3  # cap to avoid face explosion
 
         for i in range(max_iter):
             edges = mesh.edges_unique_length
@@ -33,7 +31,6 @@ def subdivide_mesh(
                 logger.debug("Target edge length reached.")
                 break
 
-            # Subdivide
             new_vertices, new_faces = trimesh.remesh.subdivide(
                 mesh.vertices, mesh.faces
             )

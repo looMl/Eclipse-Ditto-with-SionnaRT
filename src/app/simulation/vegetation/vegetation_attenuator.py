@@ -9,13 +9,8 @@ from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegr
 
 
 class VegetationAttenuator:
-    """
-    Computes per-(TX, face) vegetation attenuation in dB from the MeshRadioMap geometry.
-
-    TX positions are extracted once from the scene and cached; face centroids are
-    extracted on the first call to compute_attenuation_field and cached thereafter
-    (both are fixed within a single simulation run).
-    """
+    """Computes per-(TX, face) vegetation attenuation [dB] from MeshRadioMap geometry.
+    TX positions and face centroids are cached — both are fixed within a simulation run."""
 
     def __init__(
         self,
@@ -36,25 +31,7 @@ class VegetationAttenuator:
         freq_hz: float,
         leaf_state: str = "in_leaf",
     ) -> np.ndarray:
-        """
-        Returns attenuation in dB, shape [num_tx, num_faces].
-
-        Outer loop over TXs is tracked with a tqdm progress bar.
-        Inner vectorised loop over faces is handled by PathDepthIntegrator.
-
-        Parameters
-        ----------
-        radio_map : MeshRadioMap
-            Output of RadioMapSolver; provides the measurement surface mesh.
-        freq_hz : float
-            Carrier frequency in Hz.
-        leaf_state : {"in_leaf", "out_of_leaf"}
-            Foliage state passed to the P.833 model.
-
-        Returns
-        -------
-        attenuation_db : np.ndarray, shape [num_tx, num_faces], float32
-        """
+        """Returns attenuation_db [num_tx, num_faces] float32."""
         if self._face_centroids is None:
             self._face_centroids = self._extract_face_centroids(radio_map)
 
@@ -87,10 +64,6 @@ class VegetationAttenuator:
             f"{attenuation_db.max():.1f}] dB"
         )
         return attenuation_db
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
 
     def _deduplicate_to_raster_pixels(self, face_centroids: np.ndarray):
         """
@@ -129,16 +102,12 @@ class VegetationAttenuator:
         return positions
 
     def _extract_face_centroids(self, radio_map) -> np.ndarray:
-        """
-        Returns (F, 3) face centroid positions in scene-local metres.
-        Extracted from the measurement surface via mi.traverse.
-        """
+        """Returns (F, 3) face centroid positions in scene-local metres."""
         mesh = radio_map.measurement_surface
         params = mi.traverse(mesh)
 
-        # vertex_positions: flat buffer (V*3,) → reshape to (V, 3)
+        # Mitsuba stores positions/faces as flat buffers → reshape before use
         verts = np.array(params["vertex_positions"], copy=False).reshape(-1, 3)
-        # faces: flat buffer (F*3,) → reshape to (F, 3)
         faces = np.array(params["faces"], copy=False).reshape(-1, 3)
 
         centroids = verts[faces].mean(axis=1).astype("float32")  # (F, 3)

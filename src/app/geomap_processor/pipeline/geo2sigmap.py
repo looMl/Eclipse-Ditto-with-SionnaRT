@@ -27,8 +27,6 @@ _OVERPASS_API_URL = "https://overpass-api.de/api/interpreter"
 
 
 class SceneBuilder:
-    """Service responsible for generating the 3D scene."""
-
     def __init__(self, output_dir: Path):
         self._output_dir = output_dir
 
@@ -58,12 +56,10 @@ class SceneBuilder:
             self._generate_core_scene(bbox, materials)
             logger.success("Scene generation completed successfully.")
 
-            # Process terrain first to get elevation data
             elev_data, transform, ref_elev = self._process_terrain(bbox)
 
             self._process_vegetation(bbox)
 
-            # Define height callback for adjusting buildings meshes
             height_callback = self._create_height_callback(
                 elev_data, transform, ref_elev, *bbox.center
             )
@@ -78,8 +74,6 @@ class SceneBuilder:
     def _generate_core_scene(
         self, bbox: BoundingBox, materials: MaterialConfig
     ) -> None:
-        """Generates the base scene using the core library."""
-        # Resolve materials
         ground_mat = resolve_material(materials.ground_idx)
         rooftop_mat = resolve_material(materials.rooftop_idx)
         wall_mat = resolve_material(materials.wall_idx)
@@ -110,7 +104,6 @@ class SceneBuilder:
         center_lon: float,
         center_lat: float,
     ) -> Callable[[float, float], float] | None:
-        """Creates a callback function for height adjustment."""
         if elev_data is None or transform is None:
             return None
 
@@ -173,7 +166,6 @@ class SceneBuilder:
             logger.info("No building meshes found to optimize.")
             return
 
-        # Merge meshes with optional height adjustment
         walls_merged = mesher.merge_meshes(
             wall_files, "buildings_walls.ply", height_callback
         )
@@ -184,14 +176,12 @@ class SceneBuilder:
         scene_path = self._output_dir / "scene.xml"
         updater = SceneXMLUpdater(scene_path)
 
-        # Remove old shapes and capture BSDF IDs
         wall_filenames = {f"mesh/{f.name}" for f in wall_files}
         wall_bsdf_id = updater.remove_shapes_by_filenames(wall_filenames)
 
         rooftop_filenames = {f"mesh/{f.name}" for f in rooftop_files}
         rooftop_bsdf_id = updater.remove_shapes_by_filenames(rooftop_filenames)
 
-        # Add merged shapes
         if walls_merged and wall_bsdf_id:
             updater.add_mesh_shape(
                 "mesh/buildings_walls.ply", "mesh-buildings-walls", wall_bsdf_id
@@ -206,7 +196,6 @@ class SceneBuilder:
 
         updater.save()
 
-        # Cleanup the old individual mesh files
         mesher.cleanup_files(wall_files + rooftop_files)
 
     def _process_telecom_infrastructure(
@@ -222,7 +211,6 @@ class SceneBuilder:
         telecom_mgr = TelecomManager(bbox=bbox)
         telecom_mgr.fetch_and_process()
 
-        # Export transmitters to JSON (one antenna Thing per site, 3 sector features each)
         json_path = get_project_root() / "ditto" / "things" / "transmitters.json"
         telecom_mgr.save_transmitters_json(json_path)
 
@@ -240,7 +228,6 @@ class SceneBuilder:
         bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
         center_lon, center_lat = bbox.center
 
-        # Fetch DEM from TINITALY
         downloader = DemDownloader(get_project_root() / "geotiffs")
         dem_path = downloader.fetch(bbox_tuple)
 
@@ -262,7 +249,6 @@ class SceneBuilder:
             scene_path = self._output_dir / "scene.xml"
             updater = SceneXMLUpdater(scene_path)
 
-            # Remove old ground from scene.xml and get its material
             ground_files = {"mesh/ground.ply"}
             ground_bsdf = updater.remove_shapes_by_filenames(ground_files)
 
@@ -270,7 +256,6 @@ class SceneBuilder:
                 updater.add_mesh_shape("mesh/terrain.ply", "mesh-terrain", ground_bsdf)
                 updater.save()
                 logger.info("Replaced ground.ply with terrain.ply in scene.xml")
-                # Remove the old ground mesh file
                 ground_ply_path = self._output_dir / "mesh" / "ground.ply"
                 ground_ply_path.unlink()
             else:

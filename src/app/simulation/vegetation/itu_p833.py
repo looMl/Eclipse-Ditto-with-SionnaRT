@@ -24,31 +24,11 @@ def excess_loss_db(
     freq_hz: float,
     leaf_state: str = "in_leaf",
 ) -> float | np.ndarray:
-    """
-    Returns ITU-R P.833 excess vegetation attenuation in dB.
+    """Returns ITU-R P.833 MED excess attenuation [dB] for the given depth and frequency.
 
-    Uses the Modified Exponential Decay form:
-        R   = a · f_GHz^b          [dB/m, specific attenuation]
-        A   = A_max · (1 - exp(-R · d / A_max))
+    A = A_max · (1 - exp(-R · d / A_max)),  R = a · f_GHz^b  [dB/m]
 
-    Parameters
-    ----------
-    depth_eff_m : float or ndarray
-        Effective vegetation path depth [m], density-weighted (tcd x geometric depth).
-    freq_hz : float
-        Carrier frequency in Hz (e.g. 1.8e9). Must be ≤ 7.125 GHz.
-    leaf_state : {"in_leaf", "out_of_leaf"}
-        Seasonal foliage state.
-
-    Returns
-    -------
-    float or ndarray
-        Excess attenuation [dB], same shape as depth_eff_m. Zero at zero depth.
-
-    Raises
-    ------
-    ValueError
-        If freq_hz > 7.125e9 (FR2 out of scope for v1) or leaf_state is invalid.
+    Raises ValueError for freq_hz > 7.125 GHz (FR2 out of scope) or unknown leaf_state.
     """
     if freq_hz > _FREQ_MAX_HZ:
         raise ValueError(

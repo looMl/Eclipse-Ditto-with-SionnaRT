@@ -4,10 +4,6 @@ from sionna.rt.radio_materials import ITURadioMaterial, RadioMaterial
 
 
 class SimulationEngine:
-    """
-    Manages the core SionnaRT/Mitsuba engine variant initialization.
-    """
-
     @staticmethod
     def initialize(variant: str = "cuda_ad_mono_polarized"):
         try:

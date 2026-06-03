@@ -8,10 +8,6 @@ from requests.auth import HTTPBasicAuth
 
 
 class DittoManager:
-    """
-    Manages the lifecycle of Eclipse Ditto Things for the simulation.
-    """
-
     DEFAULT_API_URL = "http://localhost:8080/api/2"
     DEFAULT_NAMESPACE = "com.sionna"
     DEFAULT_POLICY_ID = "com.sionna:policy"
@@ -89,7 +85,6 @@ class DittoManager:
             logger.error(f"DittoManager: Error deleting {thing_id}: {e}")
 
     def _load_transmitters(self, path: Path) -> list[dict[str, Any]]:
-        """Parses the transmitters JSON file."""
         try:
             with open(path) as f:
                 data = json.load(f)

@@ -191,7 +191,6 @@ def measure_rsrp(
     )
     los_flags = _los_flags(paths)
 
-    # Vegetation correction setup (no-op when disabled or field absent)
     veg_integrator = None
     veg_freq_hz = 1.8e9
     veg_leaf_state = "in_leaf"
@@ -241,7 +240,6 @@ def measure_rsrp(
     transmitters = list(scene.transmitters.values())
     results = []
 
-    # Shadowing interval parameters
     shadow_cfg = getattr(get_settings().sionnart, "shadowing", None)
     sigma_db = (
         float(getattr(shadow_cfg, "sigma_db", 6.0))
@@ -254,9 +252,7 @@ def measure_rsrp(
         float(getattr(handset_cfg, "body_loss_db", 0.0)) if handset_cfg else 0.0
     )
 
-    # 4G LTE Subcarrier Configuration
-    # 10 MHz = 50 PRBs * 12 = 600 subcarriers
-    # 15 MHz = 75 PRBs * 12 = 900 subcarriers
+    # 4G LTE 15 MHz = 75 PRBs × 12 = 900 subcarriers
     NUM_SUBCARRIERS = 900
     SUBCARRIER_POWER_OFFSET_DB = 10 * np.log10(NUM_SUBCARRIERS)
     CARRIER_FREQ_GHZ = veg_freq_hz / 1e9
@@ -264,12 +260,9 @@ def measure_rsrp(
     for i, tx in enumerate(transmitters):
         # Shape: (num_rx, num_rx_ant, num_tx, num_tx_ant)
         antenna_pairs_power = power_linear[0, :, i, :]
-        # Sum power across all TX antennas for each RX antenna
         power_per_rx_antenna = np.sum(antenna_pairs_power, axis=1)
-        # Averaging the received power across the active branches
         total_channel_gain_linear = np.mean(power_per_rx_antenna)
 
-        # Convert channel gain to dB
         if total_channel_gain_linear > 0:
             gain_db = 10 * np.log10(total_channel_gain_linear)
         else:
@@ -277,10 +270,9 @@ def measure_rsrp(
 
         pl_db = -gain_db
 
-        # Total Transmit Power
         tx_power_total_dbm = float(np.array(tx.power_dbm).flatten()[0])
 
-        # RSRP = Total TX Power + Channel Gain - Subcarrier Offset - Body Loss
+        # RSRP = TX Power + Channel Gain - Subcarrier Offset - Body Loss
         rsrp_dbm = (
             tx_power_total_dbm
             + float(gain_db)
