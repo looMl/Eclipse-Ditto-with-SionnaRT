@@ -30,7 +30,7 @@ _GRID = 400  # 400×400 → scene covers ±200 m in both axes
 
 def _make_field(tcd: np.ndarray, chm: np.ndarray) -> VegetationField:
     """Wraps TCD/CHM arrays in a UTM-projected VegetationField centred at the origin."""
-    utm_crs_str = DemProcessor._get_utm_crs(_ORIGIN_LON, _ORIGIN_LAT)
+    utm_crs_str = DemProcessor.get_utm_crs(_ORIGIN_LON, _ORIGIN_LAT)
     utm_crs = CRS.from_string(utm_crs_str)
     ox, oy = rasterio.warp.transform("EPSG:4326", utm_crs, [_ORIGIN_LON], [_ORIGIN_LAT])
     utm_ox, utm_oy = ox[0], oy[0]

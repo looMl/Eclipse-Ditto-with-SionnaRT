@@ -9,11 +9,11 @@ from app.geomap_processor.processors.dem_processor import DemProcessor
 
 def test_utm_crs_northern_hemisphere():
     # lon 11, lat 45 (northern Italy) -> UTM zone 32N -> EPSG:32632
-    assert DemProcessor._get_utm_crs(11.0, 45.0) == "EPSG:32632"
+    assert DemProcessor.get_utm_crs(11.0, 45.0) == "EPSG:32632"
 
 
 def test_utm_crs_southern_hemisphere():
-    assert DemProcessor._get_utm_crs(11.0, -45.0) == "EPSG:32732"
+    assert DemProcessor.get_utm_crs(11.0, -45.0) == "EPSG:32732"
 
 
 def test_local_global_roundtrip():

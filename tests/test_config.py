@@ -9,7 +9,7 @@ from app.config import (
     MaterialSettings,
     Settings,
     VegetationSettings,
-    settings,
+    get_settings,
 )
 
 
@@ -36,4 +36,4 @@ def test_camera_settings_requires_all_vectors():
 
 
 def test_module_settings_singleton_is_loaded():
-    assert isinstance(settings, Settings)
+    assert isinstance(get_settings(), Settings)
