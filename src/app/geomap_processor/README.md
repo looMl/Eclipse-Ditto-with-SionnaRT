@@ -13,6 +13,7 @@ The `geomap_processor` is designed to automate the transition from real-world co
 *   **Automated Terrain Processing**: Fetches 10m resolution DEM data (e.g., from TINItaly), reprojects it to WGS84, and aligns it with the scene origin.
 *   **Building Meshing**: Generates and optimizes building meshes, ensuring they conform to the underlying terrain elevation to prevent "floating" or "buried" structures.
 *   **Infrastructure Integration**: Fetches and meshes telecom infrastructure (antennas/towers) from OSM, applying vertical offsets based on local terrain height.
+*   **Vegetation Field Generation**: Fetches OSM vegetation polygons and combines them with satellite TCD/CHM rasters to build a `VegetationField` (.npz) used by the simulation layer for ITU-R P.833 attenuation correction.
 
 ## Architecture
 
@@ -21,17 +22,21 @@ The module is organized into the following components:
 ```text
 geomap_processor/
 ├── pipeline/
-│   └── geo2sigmap.py       # Main orchestrator (SceneBuilder)
+│   └── geo2sigmap.py                    # Main orchestrator (SceneBuilder)
 ├── managers/
-│   ├── building_manager.py # Handles building mesh merging and optimization
-│   └── telecom_manager.py  # Fetches and meshes telecom infrastructure
+│   ├── building_manager.py              # Handles building mesh merging and optimization
+│   ├── telecom_manager.py               # Fetches and meshes telecom infrastructure
+│   └── vegetation_manager.py           # Fetches OSM vegetation + builds VegetationField
 ├── processors/
-│   └── dem_processor.py    # Core logic for DEM reprojection and normalization
+│   └── dem_processor.py                # Core logic for DEM reprojection and normalization
 ├── data/
-│   ├── dem_downloader.py   # WCS client for fetching DEM data
-│   └── scene_updater.py    # Manages scene.xml I/O operations
+│   ├── dem_downloader.py               # WCS client for fetching DEM data
+│   ├── scene_updater.py                # Manages scene.xml I/O operations
+│   └── vegetation_raster_downloader.py # Downloads TCD/CHM raster tiles
 └── utils/
-    └── geometry_utils.py   # BoundingBox and coordinate utilities
+    ├── geometry_utils.py               # BoundingBox and coordinate utilities
+    ├── mesh_utils.py                   # PLY mesh subdivision helpers
+    └── vegetation_field.py             # VegetationField dataclass + npz serialization
 ```
 
 ### Workflow
@@ -42,7 +47,8 @@ geomap_processor/
 4.  **Terrain Processing**: `DemProcessor` generates a high-res terrain mesh and calculates the reference elevation at the scene center.
 5.  **Height Adjustment**: A closure callback is created to map local scene coordinates to global coordinates and sample the DEM.
 6.  **Optimization**: `BuildingManager` and `TelecomManager` apply this callback to vertically align all structures with the terrain.
-7.  **Finalization**: The scene description (XML) is updated, and temporary artifacts are cleaned up.
+7.  **Vegetation Field**: `VegetationManager` fetches OSM vegetation polygons; `VegetationRasterDownloader` fetches TCD/CHM rasters; a `VegetationField` is built and serialized to `scene/mesh/vegetation_field.npz` for use by the simulation layer.
+8.  **Finalization**: The scene description (XML) is updated, and temporary artifacts are cleaned up.
 
 ## Usage
 
