@@ -1,7 +1,8 @@
 import json
+import os
 import requests
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 from loguru import logger
 from requests.auth import HTTPBasicAuth
 
@@ -12,19 +13,19 @@ class DittoManager:
     """
 
     DEFAULT_API_URL = "http://localhost:8080/api/2"
-    DEFAULT_USERNAME = "ditto"
-    DEFAULT_PASSWORD = "ditto"
     DEFAULT_NAMESPACE = "com.sionna"
     DEFAULT_POLICY_ID = "com.sionna:policy"
 
     def __init__(
         self,
         api_url: str = DEFAULT_API_URL,
-        username: str = DEFAULT_USERNAME,
-        password: str = DEFAULT_PASSWORD,
+        username: str | None = None,
+        password: str | None = None,
     ):
         self.base_url = api_url
-        self.auth = HTTPBasicAuth(username, password)
+        _user = username or os.environ.get("DITTO_USERNAME", "ditto")
+        _pass = password or os.environ.get("DITTO_PASSWORD", "ditto")
+        self.auth = HTTPBasicAuth(_user, _pass)
         self.headers = {"Content-Type": "application/json"}
 
     def provision_simulation(
@@ -87,17 +88,17 @@ class DittoManager:
         except requests.RequestException as e:
             logger.error(f"DittoManager: Error deleting {thing_id}: {e}")
 
-    def _load_transmitters(self, path: Path) -> List[Dict[str, Any]]:
+    def _load_transmitters(self, path: Path) -> list[dict[str, Any]]:
         """Parses the transmitters JSON file."""
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
                 return data
         except (OSError, json.JSONDecodeError) as e:
             logger.error(f"DittoManager: Failed to load JSON: {e}")
             return []
 
-    def _create_things(self, items: List[Dict[str, Any]]) -> None:
+    def _create_things(self, items: list[dict[str, Any]]) -> None:
         """Iterates through the list and creates Things in Ditto."""
         logger.info("DittoManager: Creating new Things...")
         success_count = 0
@@ -115,7 +116,7 @@ class DittoManager:
             f"DittoManager: Successfully created {success_count}/{len(items)} things."
         )
 
-    def _create_single_thing(self, thing_id: str, payload: Dict[str, Any]) -> bool:
+    def _create_single_thing(self, thing_id: str, payload: dict[str, Any]) -> bool:
         """Creates or updates a single Thing."""
         url = f"{self.base_url}/things/{thing_id}"
 
