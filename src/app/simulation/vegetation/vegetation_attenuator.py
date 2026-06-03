@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import mitsuba as mi
 import numpy as np
 from loguru import logger
@@ -29,8 +27,8 @@ class VegetationAttenuator:
         self.field = field
         self.integrator = integrator
 
-        self._tx_positions: List[np.ndarray] = self._extract_tx_positions()
-        self._face_centroids: Optional[np.ndarray] = None  # cached on first use
+        self._tx_positions: list[np.ndarray] = self._extract_tx_positions()
+        self._face_centroids: np.ndarray | None = None  # cached on first use
 
     def compute_attenuation_field(
         self,
@@ -102,8 +100,7 @@ class VegetationAttenuator:
         """
         t = self.field.transform
         H, W = self.field.tcd.shape
-        utm_ox = self.integrator._utm_ox
-        utm_oy = self.integrator._utm_oy
+        utm_ox, utm_oy = self.integrator.utm_origin
 
         abs_x = face_centroids[:, 0].astype("float64") + utm_ox
         abs_y = face_centroids[:, 1].astype("float64") + utm_oy
@@ -123,7 +120,7 @@ class VegetationAttenuator:
 
         return pixel_reps, face_to_pixel
 
-    def _extract_tx_positions(self) -> List[np.ndarray]:
+    def _extract_tx_positions(self) -> list[np.ndarray]:
         """Returns TX positions as list of (3,) float32 arrays in scene-local metres."""
         positions = []
         for tx in self.scene.transmitters.values():

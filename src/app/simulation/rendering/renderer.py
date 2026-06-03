@@ -10,7 +10,7 @@ from sionna.rt.renderer import (
     scoped_set_log_level,
 )
 
-from app.config import settings, get_project_root
+from app.config import get_settings, get_project_root
 from app.simulation.rendering.visual_builder import VisualSceneBuilder
 from app.simulation.rendering.shading_utils import prepare_gouraud_shading_for_radio_map
 
@@ -29,7 +29,7 @@ class SimulationRenderer:
         """
         Standard visual render (RGB).
         """
-        settings_render = settings.sionnart.rendering
+        settings_render = get_settings().sionnart.rendering
         logger.info(f"Starting Visual Render ({settings_render.resolution})...")
 
         with mi.util.scoped_set_variant("cuda_ad_rgb"):
@@ -49,8 +49,8 @@ class SimulationRenderer:
         """
         Renders the scene with a high-quality radio map overlay using Gouraud shading.
         """
-        settings_render = settings.sionnart.rendering
-        settings_cov = settings.sionnart.coverage
+        settings_render = get_settings().sionnart.rendering
+        settings_cov = get_settings().sionnart.coverage
         logger.info("Starting Coverage Render with Gouraud shading...")
 
         with mi.util.scoped_set_variant("cuda_ad_rgb"):

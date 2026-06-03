@@ -1,10 +1,9 @@
 import numpy as np
 import mitsuba as mi
 from loguru import logger
-from typing import Optional, Tuple
 from sionna.rt import RadioMapSolver, RadioMap, transform_mesh
 from sionna.rt.scene import Scene
-from app.config import settings, get_project_root
+from app.config import get_settings, get_project_root
 from app.geomap_processor.utils.mesh_utils import subdivide_mesh
 from app.geomap_processor.utils.vegetation_field import VegetationField
 from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegrator
@@ -18,11 +17,11 @@ class CoverageProcessor:
 
     def __init__(self, scene: Scene):
         self.scene = scene
-        self.settings = settings.sionnart.coverage
+        self.settings = get_settings().sionnart.coverage
 
     def compute_coverage_map(
         self, skip_vegetation: bool = False
-    ) -> Tuple[RadioMap, Optional[np.ndarray]]:
+    ) -> tuple[RadioMap, np.ndarray | None]:
         """
         Computes the radio map using the terrain mesh as the measurement surface.
 
@@ -41,7 +40,7 @@ class CoverageProcessor:
             )
 
         solver = RadioMapSolver()
-        ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+        ds_cfg = getattr(get_settings().sionnart, "diffuse_scattering", None)
         diffuse = ds_cfg is not None and getattr(ds_cfg, "enabled", False)
 
         try:
@@ -62,8 +61,8 @@ class CoverageProcessor:
         )
         return radio_map, attenuation_db
 
-    def _compute_vegetation_attenuation(self, radio_map) -> Optional[np.ndarray]:
-        veg_cfg = getattr(settings.sionnart, "vegetation", None)
+    def _compute_vegetation_attenuation(self, radio_map) -> np.ndarray | None:
+        veg_cfg = getattr(get_settings().sionnart, "vegetation", None)
         if veg_cfg is None or not getattr(veg_cfg, "enabled", False):
             return None
 

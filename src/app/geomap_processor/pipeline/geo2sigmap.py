@@ -1,10 +1,11 @@
 import argparse
-from typing import Tuple, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 from pathlib import Path
 from loguru import logger
 from scene_generation.core import Scene
 
-from app.config import settings, get_project_root
+from app.config import get_settings, get_project_root
 from app.geomap_processor.managers.telecom_manager import TelecomManager
 from app.geomap_processor.managers.building_manager import BuildingMesher
 from app.geomap_processor.managers.vegetation_manager import VegetationManager
@@ -108,7 +109,7 @@ class SceneBuilder:
         ref_elev: float,
         center_lon: float,
         center_lat: float,
-    ) -> Optional[Callable[[float, float], float]]:
+    ) -> Callable[[float, float], float] | None:
         """Creates a callback function for height adjustment."""
         if elev_data is None or transform is None:
             return None
@@ -126,7 +127,7 @@ class SceneBuilder:
         Downloads TCD/CHM rasters, burns the OSM polygon mask, and writes
         mesh/vegetation_field.npz for the simulation layer to consume.
         """
-        veg_cfg = getattr(settings.sionnart, "vegetation", None)
+        veg_cfg = getattr(get_settings().sionnart, "vegetation", None)
         if veg_cfg is None:
             logger.info("No vegetation config found; skipping vegetation processing.")
             return
@@ -136,7 +137,7 @@ class SceneBuilder:
 
         center_lon, center_lat = bbox.center
         bbox_tuple = (bbox.min_lon, bbox.min_lat, bbox.max_lon, bbox.max_lat)
-        target_crs = CRS.from_string(DemProcessor._get_utm_crs(center_lon, center_lat))
+        target_crs = CRS.from_string(DemProcessor.get_utm_crs(center_lon, center_lat))
 
         tcd_source = getattr(veg_cfg, "tcd_source", "esa_worldcover")
         chm_source = getattr(veg_cfg, "chm_source", "eth_global_2020")
@@ -158,7 +159,7 @@ class SceneBuilder:
         logger.success(f"Vegetation field saved: {npz_path}")
 
     def _optimize_buildings(
-        self, height_callback: Optional[Callable[[float, float], float]]
+        self, height_callback: Callable[[float, float], float] | None
     ) -> None:
         """Merges the generated building meshes into one using BuildingMesher"""
         logger.info("Optimizing building meshes...")
@@ -211,7 +212,7 @@ class SceneBuilder:
     def _process_telecom_infrastructure(
         self,
         bbox: BoundingBox,
-        height_callback: Optional[Callable[[float, float], float]],
+        height_callback: Callable[[float, float], float] | None,
         enable_ditto: bool = False,
     ) -> None:
         """
@@ -232,7 +233,7 @@ class SceneBuilder:
 
         logger.info("Telecom Infrastructure data processed.")
 
-    def _process_terrain(self, bbox: BoundingBox) -> Tuple[Any, Any, float]:
+    def _process_terrain(self, bbox: BoundingBox) -> tuple[Any, Any, float]:
         """Generates terrain mesh from DEM and updates the scene."""
         logger.info("Processing terrain from DEM...")
 
@@ -277,7 +278,7 @@ class SceneBuilder:
 
             return elevation, transform, ref_elev
 
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             logger.error(f"Failed to process terrain: {e}")
             return None, None, 0.0
 
@@ -295,16 +296,16 @@ def main() -> None:
 
     try:
         bbox = BoundingBox(
-            min_lon=settings.geo2sigmap.min_lon,
-            min_lat=settings.geo2sigmap.min_lat,
-            max_lon=settings.geo2sigmap.max_lon,
-            max_lat=settings.geo2sigmap.max_lat,
+            min_lon=get_settings().geo2sigmap.min_lon,
+            min_lat=get_settings().geo2sigmap.min_lat,
+            max_lon=get_settings().geo2sigmap.max_lon,
+            max_lat=get_settings().geo2sigmap.max_lat,
         )
 
         material_config = MaterialConfig(
-            ground_idx=settings.geo2sigmap.materials.ground_idx,
-            rooftop_idx=settings.geo2sigmap.materials.rooftop_idx,
-            wall_idx=settings.geo2sigmap.materials.wall_idx,
+            ground_idx=get_settings().geo2sigmap.materials.ground_idx,
+            rooftop_idx=get_settings().geo2sigmap.materials.rooftop_idx,
+            wall_idx=get_settings().geo2sigmap.materials.wall_idx,
         )
         output_dir = get_project_root() / "scene"
 

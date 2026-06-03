@@ -10,7 +10,6 @@ h_BS = 25 m nominal (formulas remain monotonic outside these bounds but
 are no longer the calibrated 3GPP model).
 """
 
-from typing import Tuple
 import numpy as np
 
 C_LIGHT = 3.0e8
@@ -96,7 +95,7 @@ def _world_to_local_direction(
 
 def antenna_gain_dbi(
     d_world: np.ndarray,
-    orientation_rad: Tuple[float, float, float],
+    orientation_rad: tuple[float, float, float],
     num_rows: int = 4,
     num_cols: int = 1,
     max_element_gain: float = 8.0,
@@ -120,7 +119,7 @@ def antenna_gain_dbi(
 
 def predict_rsrp_uma(
     tx_position: np.ndarray,
-    tx_orientation_rad: Tuple[float, float, float],
+    tx_orientation_rad: tuple[float, float, float],
     tx_power_dbm: float,
     rx_position: np.ndarray,
     f_ghz: float = 1.8,

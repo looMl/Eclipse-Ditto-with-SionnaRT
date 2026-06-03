@@ -2,7 +2,7 @@ import hashlib
 import requests
 import urllib3
 from pathlib import Path
-from typing import Tuple, Optional, Dict, Any
+from typing import Any
 from loguru import logger
 
 
@@ -16,7 +16,7 @@ class DemDownloader:
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
 
-    def fetch(self, bbox: Tuple[float, float, float, float]) -> Optional[Path]:
+    def fetch(self, bbox: tuple[float, float, float, float]) -> Path | None:
         """
         Downloads a DEM from TINITALY WCS for the given BBox (minx, miny, maxx, maxy).
         Returns the path to the cached or downloaded GeoTIFF file.
@@ -48,7 +48,7 @@ class DemDownloader:
                 file_path.unlink()
             return None
 
-    def _get_file_path(self, bbox: Tuple[float, float, float, float]) -> Path:
+    def _get_file_path(self, bbox: tuple[float, float, float, float]) -> Path:
         """Generates a unique file path based on the bounding box hash."""
         minx, miny, maxx, maxy = bbox
         bbox_str = f"{minx}_{miny}_{maxx}_{maxy}"
@@ -59,8 +59,8 @@ class DemDownloader:
         return self.output_dir / filename
 
     def _calculate_dimensions(
-        self, bbox: Tuple[float, float, float, float]
-    ) -> Tuple[int, int]:
+        self, bbox: tuple[float, float, float, float]
+    ) -> tuple[int, int]:
         """Calculates image dimensions based on target resolution."""
         minx, miny, maxx, maxy = bbox
         width = int(abs(maxx - minx) / self.RESOLUTION)
@@ -68,8 +68,8 @@ class DemDownloader:
         return width, height
 
     def _build_params(
-        self, bbox: Tuple[float, float, float, float], width: int, height: int
-    ) -> Dict[str, Any]:
+        self, bbox: tuple[float, float, float, float], width: int, height: int
+    ) -> dict[str, Any]:
         """Constructs WCS 1.0.0 request parameters."""
         minx, miny, maxx, maxy = bbox
         return {
@@ -84,7 +84,7 @@ class DemDownloader:
             "height": str(height),
         }
 
-    def _download_and_save(self, params: Dict[str, Any], file_path: Path) -> None:
+    def _download_and_save(self, params: dict[str, Any], file_path: Path) -> None:
         """Executes the download and saves the content to disk."""
         req = requests.Request("GET", self.TINITALY_WCS_URL, params=params)
         prepped = req.prepare()

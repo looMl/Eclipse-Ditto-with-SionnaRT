@@ -1,10 +1,11 @@
 import json
 import random
-from typing import List, Tuple, Any
+from typing import Any
 from dataclasses import dataclass
 from pathlib import Path
 from loguru import logger
 
+import requests
 import osmnx as ox
 from shapely.geometry import Point
 import geopandas as gpd
@@ -38,7 +39,7 @@ class TelecomManager:
 
     def __init__(self, bbox: BoundingBox):
         self.bbox = bbox
-        self.transmitters: List[Transmitter] = []
+        self.transmitters: list[Transmitter] = []
 
         # Calculate center for local coordinate system
         self.center_lon, self.center_lat = bbox.center
@@ -60,8 +61,11 @@ class TelecomManager:
         try:
             gdf = ox.features_from_bbox(bbox=bbox_tuple, tags=tags)
             self._process_gdf(gdf)
-        except Exception as e:
-            logger.error(f"Telecom data fetch failed: {e}")
+        except (requests.RequestException, ValueError, RuntimeError, OSError) as e:
+            logger.error(
+                f"Telecom data fetch failed: {e}. "
+                "self.transmitters will be empty; downstream JSON will be empty."
+            )
 
     def _process_gdf(self, gdf: gpd.GeoDataFrame) -> None:
         if gdf.empty:
@@ -102,7 +106,7 @@ class TelecomManager:
             tx_list = self._create_site_transmitters(idx, lat, lon, x - cx, y - cy)
             self.transmitters.extend(tx_list)
 
-    def _get_geometry_center(self, geom: Any) -> Tuple[float, float]:
+    def _get_geometry_center(self, geom: Any) -> tuple[float, float]:
         """Extracts (x, y) from a Point or (centroid.x, centroid.y) from other geometries."""
         if geom.geom_type == "Point":
             return geom.x, geom.y
@@ -110,7 +114,7 @@ class TelecomManager:
 
     def _create_site_transmitters(
         self, idx: Any, lat: float, lon: float, local_x: float, local_y: float
-    ) -> List[Transmitter]:
+    ) -> list[Transmitter]:
         """Creates 3 Transmitters (sectors) for a single cell site."""
 
         # Clean up ID if it comes as a tuple (e.g. ('node', 12345))

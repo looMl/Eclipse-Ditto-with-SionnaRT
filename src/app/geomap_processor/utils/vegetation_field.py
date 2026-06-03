@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import rasterio
@@ -26,7 +25,7 @@ class VegetationField:
     origin_lon: float  # scene bbox centre longitude (for local ↔ global conversion)
     origin_lat: float  # scene bbox centre latitude
 
-    def sample(self, x_local: float, y_local: float) -> Tuple[float, float]:
+    def sample(self, x_local: float, y_local: float) -> tuple[float, float]:
         """
         Returns (tcd, chm) at scene-local (x, y) via bilinear interpolation.
         Out-of-bounds coordinates return (0.0, 0.0).

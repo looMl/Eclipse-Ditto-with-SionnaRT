@@ -1,6 +1,6 @@
 import trimesh
 from pathlib import Path
-from typing import List, Tuple, Callable, Optional
+from collections.abc import Callable
 from loguru import logger
 
 
@@ -10,7 +10,7 @@ class BuildingMesher:
     def __init__(self, mesh_dir: Path):
         self.mesh_dir = mesh_dir
 
-    def get_building_files(self) -> Tuple[List[Path], List[Path]]:
+    def get_building_files(self) -> tuple[list[Path], list[Path]]:
         """
         Scans the mesh directory for building wall and rooftop files.
         """
@@ -20,9 +20,9 @@ class BuildingMesher:
 
     def merge_meshes(
         self,
-        files: List[Path],
+        files: list[Path],
         output_filename: str,
-        height_callback: Optional[Callable[[float, float], float]] = None,
+        height_callback: Callable[[float, float], float] | None = None,
     ) -> bool:
         """
         Merges provided mesh files into a single file, optionally applying a height offset.
@@ -71,7 +71,7 @@ class BuildingMesher:
         except (ValueError, IndexError, TypeError) as e:
             logger.warning(f"Failed to apply height offset to mesh: {e}")
 
-    def cleanup_files(self, files: List[Path]) -> None:
+    def cleanup_files(self, files: list[Path]) -> None:
         """Deletes the provided files from the filesystem."""
         for f in files:
             try:

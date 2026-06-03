@@ -9,7 +9,6 @@ doesn't intersect any non-zero TCD pixel.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 import rasterio.warp
@@ -54,7 +53,7 @@ class PathDepthIntegrator:
     def __init__(
         self,
         field: VegetationField,
-        dem: Optional[DemSampler] = None,
+        dem: DemSampler | None = None,
         step_m: float = 1.0,
     ):
         self.field = field
@@ -65,7 +64,7 @@ class PathDepthIntegrator:
         self._step_m = max(step_m, cell_m / 2.0)
 
         # Scene origin in absolute UTM: local (x, y) + (utm_ox, utm_oy) = absolute UTM
-        utm_crs = DemProcessor._get_utm_crs(field.origin_lon, field.origin_lat)
+        utm_crs = DemProcessor.get_utm_crs(field.origin_lon, field.origin_lat)
         ox, oy = rasterio.warp.transform(
             "EPSG:4326", utm_crs, [field.origin_lon], [field.origin_lat]
         )
@@ -73,13 +72,18 @@ class PathDepthIntegrator:
         self._utm_oy: float = oy[0]
 
         # AABB of non-zero TCD in scene-local metres (None if TCD is all-zero)
-        self._nz_bbox: Optional[Tuple[float, float, float, float]] = (
+        self._nz_bbox: tuple[float, float, float, float] | None = (
             self._nonzero_tcd_bbox()
         )
         if self._nz_bbox is None:
             logger.warning(
                 "VegetationField has no non-zero TCD pixels — integrator is a no-op."
             )
+
+    @property
+    def utm_origin(self) -> tuple[float, float]:
+        """Scene origin as absolute UTM (easting, northing) in metres."""
+        return self._utm_ox, self._utm_oy
 
     # ------------------------------------------------------------------
     # Public API
@@ -271,7 +275,7 @@ class PathDepthIntegrator:
 
     def _sample_field_batch(
         self, sample_xy: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Returns (tcd, chm) for (N, S, 2) scene-local XY points, shape (N, S).
         """
@@ -346,7 +350,7 @@ class PathDepthIntegrator:
             & (seg_min_y <= nz_max_y)
         )
 
-    def _nonzero_tcd_bbox(self) -> Optional[Tuple[float, float, float, float]]:
+    def _nonzero_tcd_bbox(self) -> tuple[float, float, float, float] | None:
         """
         Bounding box of non-zero TCD pixels in scene-local metres.
         Returns None when TCD is all-zero (no vegetation).

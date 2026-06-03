@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
 from scene_generation.itu_materials import ITU_MATERIALS
 
 # Cache material list for index-based access
@@ -36,7 +35,7 @@ class BoundingBox:
                 f"min_lat ({self.min_lat}) must be less than max_lat ({self.max_lat})"
             )
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         """Returns the bbox as a dictionary for compatibility."""
         return {
             "min_lon": self.min_lon,
@@ -46,7 +45,7 @@ class BoundingBox:
         }
 
     @property
-    def polygon_points(self) -> List[List[float]]:
+    def polygon_points(self) -> list[list[float]]:
         """
         Returns the counter-clockwise polygon points for the bbox.
         Top-Left -> Top-Right -> Bottom-Right -> Bottom-Left -> Top-Left (Closed Loop)
@@ -60,7 +59,7 @@ class BoundingBox:
         ]
 
     @property
-    def center(self) -> Tuple[float, float]:
+    def center(self) -> tuple[float, float]:
         """Returns the center (lon, lat) of the bounding box."""
         return (self.min_lon + self.max_lon) / 2.0, (self.min_lat + self.max_lat) / 2.0
 

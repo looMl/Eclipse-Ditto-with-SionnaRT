@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Set, Optional
+from typing import Any
 from loguru import logger
 
 
@@ -34,7 +34,7 @@ class SceneXMLUpdater:
             logger.error(f"Failed to save scene.xml: {e}")
             raise
 
-    def remove_shapes_by_filenames(self, filenames: Set[str]) -> Optional[str]:
+    def remove_shapes_by_filenames(self, filenames: set[str]) -> str | None:
         """
         Removes shapes referencing any of the given filenames.
         Returns the BSDF ID of the first removed shape, or None if nothing is removed.
@@ -109,12 +109,13 @@ class SceneXMLUpdater:
                         continue
         return xml_colors
 
-    def get_projection_info(self) -> dict[str, any]:
+    def get_projection_info(self) -> dict[str, Any]:
         """
         Extracts projection-related metadata from the XML.
         Returns a dict with center_lat, center_lon, and utm_zone.
+        Raises ValueError if any of the three expected keys is absent from the scene XML.
         """
-        info = {}
+        info: dict[str, Any] = {}
         defaults = {
             "center_lat": "scenegen_center_lat",
             "center_lon": "scenegen_center_lon",
@@ -125,9 +126,16 @@ class SceneXMLUpdater:
             if node is not None:
                 val = node.get("value")
                 info[key] = float(val) if "center" in key else val
+        missing = [k for k in defaults if k not in info]
+        if missing:
+            raise ValueError(
+                f"scene.xml is missing projection metadata: {missing}. "
+                "Ensure scenegen_center_lat, scenegen_center_lon, and "
+                "scenegen_UTM_zone are present as <default> elements."
+            )
         return info
 
-    def _get_bsdf_id(self, shape: ET.Element) -> Optional[str]:
+    def _get_bsdf_id(self, shape: ET.Element) -> str | None:
         """Extracts the BSDF ID associated with a shape element."""
         ref = shape.find("ref[@name='bsdf']")
         return ref.get("id") if ref is not None else None

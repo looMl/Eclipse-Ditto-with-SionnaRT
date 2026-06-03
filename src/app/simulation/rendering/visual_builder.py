@@ -1,11 +1,12 @@
 import mitsuba as mi
 from sionna.rt import Camera
 from sionna.rt.renderer import visual_scene_from_wireless_scene
-from app.config import settings
+from app.config import get_settings
+
 
 class VisualSceneBuilder:
     """
-    Responsible for constructing the visual representation of the scene 
+    Responsible for constructing the visual representation of the scene
     (geometry, lights, camera) for rendering.
     """
 
@@ -15,8 +16,8 @@ class VisualSceneBuilder:
         Creates a Mitsuba sensor (camera) based on configuration.
         """
         my_cam = Camera(
-            position=settings.sionnart.camera.position,
-            look_at=settings.sionnart.camera.look_at,
+            position=get_settings().sionnart.camera.position,
+            look_at=get_settings().sionnart.camera.look_at,
         )
 
         matrix = my_cam.world_transform.matrix.numpy().squeeze().reshape(4, 4)
@@ -42,7 +43,9 @@ class VisualSceneBuilder:
         Converts the wireless scene to a visual Mitsuba scene with custom lighting.
         """
         # 1. Base conversion from Sionna
-        visual_dict = visual_scene_from_wireless_scene(scene, sensor, max_depth=max_depth)
+        visual_dict = visual_scene_from_wireless_scene(
+            scene, sensor, max_depth=max_depth
+        )
 
         # 2. Inject Custom Lighting (Sun + Sky)
         # Enable emitters to allow sky visibility

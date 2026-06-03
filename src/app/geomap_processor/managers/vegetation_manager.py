@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
+from collections.abc import Callable
 
 import numpy as np
 import osmnx as ox
@@ -92,7 +93,7 @@ class VegetationManager:
         return gdf
 
     def build_density_field(
-        self, tcd_path: Path, chm_path: Optional[Path]
+        self, tcd_path: Path, chm_path: Path | None
     ) -> VegetationField:
         """
         Returns a VegetationField gated by the OSM polygon mask.

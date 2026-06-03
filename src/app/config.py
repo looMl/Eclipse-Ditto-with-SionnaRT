@@ -1,6 +1,8 @@
+from functools import lru_cache
+
 import yaml
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 from loguru import logger
 
@@ -8,13 +10,13 @@ from loguru import logger
 
 
 class CameraSettings(BaseModel):
-    position: List[float]
-    orientation: List[float]
-    look_at: List[float]
+    position: list[float]
+    orientation: list[float]
+    look_at: list[float]
 
 
 class RenderingSettings(BaseModel):
-    resolution: List[int]
+    resolution: list[int]
     num_samples: int
     show_devices: bool
 
@@ -40,7 +42,7 @@ class VegetationSettings(BaseModel):
     tcd_source: str = "esa_worldcover"
     chm_source: str = "eth_global_2020"
     raster_step_m: float = 1.0
-    heuristic_heights: Dict[str, float] = Field(default_factory=dict)
+    heuristic_heights: dict[str, float] = Field(default_factory=dict)
     mode: Literal["per_link", "per_path"] = "per_link"
 
 
@@ -68,9 +70,9 @@ class SionnartSettings(BaseModel):
     camera: CameraSettings
     rendering: RenderingSettings
     coverage: CoverageSettings
-    vegetation: Optional[VegetationSettings] = None
-    diffuse_scattering: Optional[DiffuseScatteringSettings] = None
-    shadowing: Optional[ShadowingSettings] = None
+    vegetation: VegetationSettings | None = None
+    diffuse_scattering: DiffuseScatteringSettings | None = None
+    shadowing: ShadowingSettings | None = None
 
 
 class LoggingSettings(BaseModel):
@@ -100,7 +102,7 @@ def load_settings() -> Settings:
         raise FileNotFoundError(f"Config file not found at {config_path}")
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             raw_config = yaml.safe_load(f)
 
         return Settings(**raw_config)
@@ -110,4 +112,7 @@ def load_settings() -> Settings:
         raise
 
 
-settings = load_settings()
+@lru_cache(maxsize=None)
+def get_settings() -> Settings:
+    """Returns the cached Settings singleton, loading config.yaml on first call."""
+    return load_settings()

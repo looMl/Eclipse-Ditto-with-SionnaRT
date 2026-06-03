@@ -4,7 +4,6 @@ from rasterio.transform import from_bounds, rowcol
 import numpy as np
 import trimesh
 from pathlib import Path
-from typing import Tuple, Union, Optional
 from loguru import logger
 
 
@@ -14,7 +13,7 @@ class DemProcessor:
     """
 
     @staticmethod
-    def _get_utm_crs(lon: float, lat: float) -> str:
+    def get_utm_crs(lon: float, lat: float) -> str:
         """Calculates the EPSG code for the UTM zone of the given coordinate."""
         zone = int((lon + 180) / 6) + 1
         hemisphere = "6" if lat >= 0 else "7"  # 326xx (North) vs 327xx (South)
@@ -22,8 +21,8 @@ class DemProcessor:
 
     @staticmethod
     def process_dem(
-        dem_path: Union[str, Path], bbox: Tuple[float, float, float, float]
-    ) -> Tuple[np.ndarray, rasterio.Affine]:
+        dem_path: str | Path, bbox: tuple[float, float, float, float]
+    ) -> tuple[np.ndarray, rasterio.Affine]:
         """
         Reads a DEM file, reprojects it to EPSG:4326, and crops it to the specified bounding box.
         """
@@ -70,8 +69,8 @@ class DemProcessor:
     def generate_terrain_mesh(
         elevation_data: np.ndarray,
         transform: rasterio.Affine,
-        output_path: Union[str, Path],
-        mesh_origin: Optional[Tuple[float, float]] = None,
+        output_path: str | Path,
+        mesh_origin: tuple[float, float] | None = None,
     ) -> float:
         """
         Generates a 3D mesh from elevation data and saves it as a PLY file.
@@ -95,7 +94,7 @@ class DemProcessor:
             # Project to local coordinates if origin is provided
             if mesh_origin:
                 origin_lon, origin_lat = mesh_origin
-                dst_crs = DemProcessor._get_utm_crs(origin_lon, origin_lat)
+                dst_crs = DemProcessor.get_utm_crs(origin_lon, origin_lat)
                 src_crs = "EPSG:4326"
 
                 logger.info(
@@ -145,8 +144,8 @@ class DemProcessor:
     def _normalize_elevation(
         elevation_data: np.ndarray,
         transform: rasterio.Affine,
-        mesh_origin: Optional[Tuple[float, float]],
-    ) -> Tuple[np.ndarray, float]:
+        mesh_origin: tuple[float, float] | None,
+    ) -> tuple[np.ndarray, float]:
         """Calculates normalized elevation values relative to the origin or minimum."""
         height, width = elevation_data.shape
         if mesh_origin:
@@ -161,11 +160,11 @@ class DemProcessor:
     @staticmethod
     def local_to_global(
         x: float, y: float, origin_lon: float, origin_lat: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         Converts local metric coordinates (x, y) back to global (lon, lat).
         """
-        dst_crs = DemProcessor._get_utm_crs(origin_lon, origin_lat)
+        dst_crs = DemProcessor.get_utm_crs(origin_lon, origin_lat)
         src_crs = "EPSG:4326"
 
         # Calculate origin in UTM
@@ -185,11 +184,11 @@ class DemProcessor:
     @staticmethod
     def global_to_local(
         lon: float, lat: float, origin_lon: float, origin_lat: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         Converts global coordinates (lon, lat) to local metric coordinates (x, y).
         """
-        dst_crs = DemProcessor._get_utm_crs(origin_lon, origin_lat)
+        dst_crs = DemProcessor.get_utm_crs(origin_lon, origin_lat)
         src_crs = "EPSG:4326"
 
         # Calculate origin in UTM

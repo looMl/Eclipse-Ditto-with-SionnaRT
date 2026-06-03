@@ -1,10 +1,9 @@
 import json
-from typing import Tuple
 import pyproj
 import numpy as np
 import sionna.rt
 from loguru import logger
-from app.config import settings, get_project_root
+from app.config import get_settings, get_project_root
 from app.geomap_processor.data.scene_updater import SceneXMLUpdater
 
 
@@ -15,7 +14,7 @@ class SceneManager:
 
     def __init__(self):
         self.scene_dir = get_project_root() / "scene"
-        self.scene_path = self.scene_dir / settings.sionnart.scene_name
+        self.scene_path = self.scene_dir / get_settings().sionnart.scene_name
         self.transmitters_json = (
             get_project_root() / "ditto" / "things" / "transmitters.json"
         )
@@ -34,7 +33,7 @@ class SceneManager:
 
         return scene
 
-    def get_transformer(self) -> Tuple[pyproj.Transformer, Tuple[float, float]]:
+    def get_transformer(self) -> tuple[pyproj.Transformer, tuple[float, float]]:
         """Returns the transformer and origin offset for coordinate conversion."""
         updater = SceneXMLUpdater(self.scene_path)
         proj_info = updater.get_projection_info()
@@ -46,7 +45,7 @@ class SceneManager:
         return transformer, (ox, oy)
 
     def _apply_scattering(self, scene: sionna.rt.Scene):
-        ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+        ds_cfg = getattr(get_settings().sionnart, "diffuse_scattering", None)
         if ds_cfg is None or not getattr(ds_cfg, "enabled", False):
             return
         nu = float(getattr(ds_cfg, "scattering_coefficient", 0.25))
@@ -78,7 +77,7 @@ class SceneManager:
 
         transformer, (ox, oy) = self.get_transformer()
 
-        with open(self.transmitters_json, "r") as f:
+        with open(self.transmitters_json) as f:
             data = json.load(f)
 
         # Standard 4G/5G Sub-6 GHz Sector Antenna (e.g., 2T2R configuration)

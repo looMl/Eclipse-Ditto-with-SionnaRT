@@ -2,7 +2,6 @@ import hashlib
 import math
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 import rasterio
@@ -38,11 +37,11 @@ class VegetationRasterDownloader:
 
     def fetch(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
         tcd_source: str,
         chm_source: str,
-        target_crs: Optional[CRS] = None,
-    ) -> Tuple[Optional[Path], Optional[Path]]:
+        target_crs: CRS | None = None,
+    ) -> tuple[Path | None, Path | None]:
         """
         Returns (tcd_path, chm_path) for bbox (min_lon, min_lat, max_lon, max_lat).
         Files are reprojected to target_crs when provided. Either path may be None
@@ -58,10 +57,10 @@ class VegetationRasterDownloader:
 
     def _fetch_tcd(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
         source: str,
-        target_crs: Optional[CRS],
-    ) -> Optional[Path]:
+        target_crs: CRS | None,
+    ) -> Path | None:
         out_path = self._cache_path("tcd", source, bbox)
         if out_path.exists():
             logger.info(f"Using cached TCD [{source}]: {out_path}")
@@ -81,10 +80,10 @@ class VegetationRasterDownloader:
 
     def _fetch_chm(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
         source: str,
-        target_crs: Optional[CRS],
-    ) -> Optional[Path]:
+        target_crs: CRS | None,
+    ) -> Path | None:
         if source == "heuristic":
             return None  # No raster; VegetationField falls back to per-tag heights
         out_path = self._cache_path("chm", source, bbox)
@@ -112,9 +111,9 @@ class VegetationRasterDownloader:
 
     def _worldcover_tcd(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
         out_path: Path,
-        target_crs: Optional[CRS],
+        target_crs: CRS | None,
     ) -> Path:
         tile_ids = self._tile_ids(bbox)
         logger.info(f"Fetching ESA WorldCover tiles: {tile_ids}")
@@ -139,9 +138,9 @@ class VegetationRasterDownloader:
 
     def _worldcover_ndvi_tcd(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
         out_path: Path,
-        target_crs: Optional[CRS],
+        target_crs: CRS | None,
     ) -> Path:
         try:
             import planetary_computer
@@ -202,12 +201,12 @@ class VegetationRasterDownloader:
 
     def _copernicus_tcd(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
         out_path: Path,
-        target_crs: Optional[CRS],
+        target_crs: CRS | None,
     ) -> Path:
         if not os.environ.get("CLMS_TOKEN"):
-            raise EnvironmentError(
+            raise OSError(
                 "copernicus_hrl requires the CLMS_TOKEN environment variable. "
                 "Register at https://land.copernicus.eu/ to obtain one."
             )
@@ -220,10 +219,10 @@ class VegetationRasterDownloader:
     # Shared helpers
     # ------------------------------------------------------------------
 
-    def _tile_ids(self, bbox: Tuple[float, float, float, float]) -> List[str]:
+    def _tile_ids(self, bbox: tuple[float, float, float, float]) -> list[str]:
         """3°×3° tile IDs (WorldCover / ETH CHM grid) covering the bbox."""
         min_lon, min_lat, max_lon, max_lat = bbox
-        ids: List[str] = []
+        ids: list[str] = []
         lat = math.floor(min_lat / 3) * 3
         while lat <= max_lat:
             lon = math.floor(min_lon / 3) * 3
@@ -236,9 +235,9 @@ class VegetationRasterDownloader:
         return ids
 
     def _download_tiles(
-        self, tile_ids: List[str], url_template: str, prefix: str
-    ) -> List[Path]:
-        paths: List[Path] = []
+        self, tile_ids: list[str], url_template: str, prefix: str
+    ) -> list[Path]:
+        paths: list[Path] = []
         for tile_id in tile_ids:
             dest = self.output_dir / f"veg_{prefix}_raw_{tile_id}.tif"
             if dest.exists():
@@ -253,10 +252,10 @@ class VegetationRasterDownloader:
 
     def _merge_clip_reproject(
         self,
-        tile_paths: List[Path],
-        bbox: Tuple[float, float, float, float],
+        tile_paths: list[Path],
+        bbox: tuple[float, float, float, float],
         out_path: Path,
-        target_crs: Optional[CRS],
+        target_crs: CRS | None,
         resampling: Resampling = Resampling.bilinear,
     ) -> None:
         """Merges tiles, clips to bbox, optionally reprojects to target_crs."""
@@ -305,7 +304,7 @@ class VegetationRasterDownloader:
         profile: dict,
         target_crs: CRS,
         resampling: Resampling,
-    ) -> Tuple[np.ndarray, dict]:
+    ) -> tuple[np.ndarray, dict]:
         src_crs = profile["crs"]
         src_transform = profile["transform"]
         h, w = data.shape
@@ -335,7 +334,7 @@ class VegetationRasterDownloader:
         }
         return dst, new_profile
 
-    def _http_download(self, url: str, dest: Path) -> Optional[Path]:
+    def _http_download(self, url: str, dest: Path) -> Path | None:
         logger.info(f"Downloading: {url}")
         try:
             response = http_get(url, stream=True, timeout=120)
@@ -353,7 +352,7 @@ class VegetationRasterDownloader:
         self,
         layer: str,
         source: str,
-        bbox: Tuple[float, float, float, float],
+        bbox: tuple[float, float, float, float],
     ) -> Path:
         bbox_hash = hashlib.md5(
             f"{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}".encode(), usedforsecurity=False

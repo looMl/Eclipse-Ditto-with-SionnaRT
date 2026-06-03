@@ -5,8 +5,6 @@ Reference: ITU-R P.833-9 (09/2013), §3.2
 Validity: 30 MHz - 60 GHz (implementation limited to sub-6 GHz).
 """
 
-from typing import Union
-
 import numpy as np
 
 # (a, b, A_max_dB) per leaf state.
@@ -22,10 +20,10 @@ _FREQ_MAX_HZ = 7.125e9  # FR2 boundary; extrapolation above this is out of scope
 
 
 def excess_loss_db(
-    depth_eff_m: Union[float, np.ndarray],
+    depth_eff_m: float | np.ndarray,
     freq_hz: float,
     leaf_state: str = "in_leaf",
-) -> Union[float, np.ndarray]:
+) -> float | np.ndarray:
     """
     Returns ITU-R P.833 excess vegetation attenuation in dB.
 
