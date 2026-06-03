@@ -1,7 +1,7 @@
 [project]
-name = "ditto-sionnart-bridge"
-version = "0.1.0"
-description = "A bridge for real-time radio propagation analysis using Eclipse Ditto and SionnaRT."
+name = "eclipse-ditto-sionnart"
+version = "1.0"
+description = "RF coverage simulation using SionnaRT ray-tracing with Eclipse Ditto digital twin integration."
 readme = "README.md"
 requires-python = ">=3.10, <3.12"
 classifiers = [
@@ -12,19 +12,23 @@ classifiers = [
 ]
 dependencies = [
     "sionna-rt==1.2.1",
-    "tensorflow==2.19.0",
     "matplotlib==3.10.7",
+    "mitsuba",
     "numpy",
     "loguru",
     "PyYAML",
     "pydantic==2.12.4",
+    "pyproj",
     "scene_generation",
+    "scikit-learn",
+    "trimesh",
     "rasterio",
     "requests",
     "shapely",
     "osmnx",
     "geopandas",
     "tqdm",
+    "urllib3",
 ]
 
 [project.optional-dependencies]
