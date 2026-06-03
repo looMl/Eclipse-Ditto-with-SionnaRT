@@ -1,30 +1,26 @@
 import sys
+from typing import Any
 import numpy as np
 import sionna.rt as rt
 import argparse
 from loguru import logger
 from app.simulation.engine import SimulationEngine
 from app.simulation.scene_manager import SceneManager
-from app.config import settings, get_project_root
+from app.config import get_settings, get_project_root
 from app.geomap_processor.utils.vegetation_field import VegetationField
 from app.simulation.vegetation.vegetation_path_integrator import PathDepthIntegrator
 from app.simulation.vegetation.itu_p833 import excess_loss_db
 from app.simulation.baselines.uma_38901 import predict_rsrp_uma
 
 
-def _veg_per_path_attenuation_linear(
+def _collapse_dense_paths(
     paths,
-    integrator: PathDepthIntegrator,
-    freq_hz: float,
-    leaf_state: str,
-) -> np.ndarray:
-    """Per-(tx, path) linear vegetation attenuation factor in [0, 1].
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+    """Collapse full Sionna path tensors to (num_tgt, num_src, num_paths) form.
 
-    Walks the path graph emitted by Sionna's PathSolver, builds a flat list of
-    every ray segment with bookkeeping back to (tx, path), runs the per-segment
-    integrator once, and reduces depths back per path. Geometry mirrors
-    ``sionna.rt.paths_to_segments`` but preserves the path-id mapping needed
-    to apply attenuation to per-path power before aggregation.
+    When paths.synthetic_array is False, Sionna emits tensors with separate
+    pattern and array-size axes that must be squeezed out before use.
+    Returns (vertices, valid, types, src, tgt, max_depth).
     """
     vertices = np.array(paths.vertices)
     valid = np.array(paths.valid)
@@ -72,6 +68,25 @@ def _veg_per_path_attenuation_linear(
             tx_array_size,
             -1,
         )[:, :, 0, :, :, 0, :, :].reshape(max_depth, num_tgt, num_src, -1)
+
+    return vertices, valid, types, src, tgt, max_depth
+
+
+def _veg_per_path_attenuation_linear(
+    paths,
+    integrator: PathDepthIntegrator,
+    freq_hz: float,
+    leaf_state: str,
+) -> np.ndarray:
+    """Per-(tx, path) linear vegetation attenuation factor in [0, 1].
+
+    Walks the path graph emitted by Sionna's PathSolver, builds a flat list of
+    every ray segment with bookkeeping back to (tx, path), runs the per-segment
+    integrator once, and reduces depths back per path. Geometry mirrors
+    ``sionna.rt.paths_to_segments`` but preserves the path-id mapping needed
+    to apply attenuation to per-path power before aggregation.
+    """
+    vertices, valid, types, src, tgt, max_depth = _collapse_dense_paths(paths)
 
     num_tgt, num_src, num_paths = valid.shape
     none_type = int(rt.InteractionType.NONE)
@@ -126,26 +141,7 @@ _Z90 = 1.2816  # Φ⁻¹(0.90) — used for the 80 % log-normal shadowing interv
 def _los_flags(paths) -> np.ndarray:
     """Per-TX boolean: True if any valid path to the RX has no interactions (LOS)."""
     none_type = int(rt.InteractionType.NONE)
-    valid = np.array(paths.valid)
-    types = np.array(paths.interactions)
-    max_depth = types.shape[0]
-
-    if not paths.synthetic_array:
-        num_rx = paths.num_rx
-        rx_sz = paths.rx_array.array_size
-        num_rx_pat = len(paths.rx_array.antenna_pattern.patterns)
-        num_tx = paths.num_tx
-        tx_sz = paths.tx_array.array_size
-        num_tx_pat = len(paths.tx_array.antenna_pattern.patterns)
-        num_tgt = np.array(paths.targets).T.shape[0]
-        num_src = np.array(paths.sources).T.shape[0]
-        valid = valid.reshape(num_rx, num_rx_pat, rx_sz, num_tx, num_tx_pat, tx_sz, -1)[
-            :, 0, :, :, 0, :, :
-        ].reshape(num_tgt, num_src, -1)
-        types = types.reshape(
-            max_depth, num_rx, num_rx_pat, rx_sz, num_tx, num_tx_pat, tx_sz, -1
-        )[:, :, 0, :, :, 0, :, :].reshape(max_depth, num_tgt, num_src, -1)
-
+    _, valid, types, _, _, _ = _collapse_dense_paths(paths)
     # LOS: valid path whose first-depth interaction type is NONE (no bounces)
     is_los = valid & (types[0] == none_type)  # (num_tgt, num_src, num_paths)
     return np.any(is_los, axis=(0, 2))  # (num_src,)
@@ -156,7 +152,7 @@ def measure_rsrp(
     y: float,
     z: float = 1.5,
     skip_vegetation: bool = False,
-):
+) -> list[dict[str, Any]]:
     """
     Measures the Reference Signal Received Power (RSRP) in dBm at a given scene position.
     """
@@ -184,13 +180,13 @@ def measure_rsrp(
 
     logger.info("Computing propagation paths...")
     solver = rt.PathSolver()
-    ds_cfg = getattr(settings.sionnart, "diffuse_scattering", None)
+    ds_cfg = getattr(get_settings().sionnart, "diffuse_scattering", None)
     diffuse = ds_cfg is not None and getattr(ds_cfg, "enabled", False)
     paths = solver(
         scene,
-        max_depth=settings.sionnart.coverage.max_depth,
-        samples_per_src=settings.sionnart.coverage.samples_per_tx,
-        max_num_paths_per_src=settings.sionnart.coverage.max_num_paths_per_src,
+        max_depth=get_settings().sionnart.coverage.max_depth,
+        samples_per_src=get_settings().sionnart.coverage.samples_per_tx,
+        max_num_paths_per_src=get_settings().sionnart.coverage.max_num_paths_per_src,
         diffuse_reflection=diffuse,
     )
     los_flags = _los_flags(paths)
@@ -200,7 +196,7 @@ def measure_rsrp(
     veg_freq_hz = 1.8e9
     veg_leaf_state = "in_leaf"
     veg_mode = "per_link"
-    veg_cfg = getattr(settings.sionnart, "vegetation", None)
+    veg_cfg = getattr(get_settings().sionnart, "vegetation", None)
     if (
         not skip_vegetation
         and veg_cfg is not None
@@ -246,14 +242,14 @@ def measure_rsrp(
     results = []
 
     # Shadowing interval parameters
-    shadow_cfg = getattr(settings.sionnart, "shadowing", None)
+    shadow_cfg = getattr(get_settings().sionnart, "shadowing", None)
     sigma_db = (
         float(getattr(shadow_cfg, "sigma_db", 6.0))
         if shadow_cfg and getattr(shadow_cfg, "enabled", True)
         else 0.0
     )
 
-    handset_cfg = getattr(settings.sionnart, "handset", None)
+    handset_cfg = getattr(get_settings().sionnart, "handset", None)
     body_loss_db = (
         float(getattr(handset_cfg, "body_loss_db", 0.0)) if handset_cfg else 0.0
     )
